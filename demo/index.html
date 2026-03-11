@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Squad Flow Tracker — Demo</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500&family=Outfit:wght@300;400;500;600;700&display=swap');
@@ -317,8 +320,8 @@ body::after {
 }
 
 /* ─── FLOW GRAPH ─── */
-.graph-container { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 400px; position: relative; }
-.graph-container svg { width: 100%; height: 100%; max-height: 600px; }
+.graph-container { flex: 1; display: flex; align-items: flex-start; justify-content: flex-start; min-height: 400px; position: relative; overflow: auto; }
+.graph-container svg { width: 100%; height: auto; display: block; }
 
 /* SVG node styles — liquid glass cards */
 .node-bg {
@@ -687,7 +690,8 @@ body::after {
   <div class="controls">
     <div class="select-wrap">
       <select id="sel-scenario">
-        <option value="nsc-pipeline">nsc-pipeline (8 agents)</option>
+        <option value="nsc-pipeline">nirvana-squad-creator (8 agents)</option>
+        <option value="sfm-full-funnel">sales-funnel-masters (21 agents)</option>
       </select>
     </div>
     <div class="select-wrap">
@@ -956,7 +960,7 @@ function addEvent(type, icon, header, details, time) {
 
 function agentToId(name) {
   if (!name) return null;
-  return name.replace(/^squad-/, '');
+  return name.replace(/^[a-z]+-/, '');
 }
 
 function agentEmoji(name) {
@@ -982,44 +986,78 @@ function agentDesc(name) {
 }
 
 function buildGraph(nodes, edges) {
-  const agents = nodes.map(n => n.name || n.id);
-  const topCount = Math.ceil(agents.length / 2);
-  const spacing = 190;
-  const startX = 100;
-
-  layoutNodes = [];
-
-  // Top row L→R
-  for (let i = 0; i < topCount; i++) {
-    const n = nodes[i];
+  // BFS/topological level layout — compute levels from DAG
+  const nodeMap = {};
+  nodes.forEach(n => {
     const id = n.id || agentToId(n.name);
-    layoutNodes.push({
-      id,
-      name: n.name || id,
-      emoji: agentEmoji(n.name || id),
-      desc: agentDesc(n.name || id),
-      x: startX + i * spacing,
-      y: 75,
+    nodeMap[id] = { id, name: n.name || id, inDegree: 0, children: [], level: -1 };
+  });
+
+  // Build adjacency + in-degree
+  edges.forEach(e => {
+    if (nodeMap[e.from] && nodeMap[e.to]) {
+      nodeMap[e.from].children.push(e.to);
+      nodeMap[e.to].inDegree++;
+    }
+  });
+
+  // BFS from root nodes (inDegree === 0)
+  const queue = [];
+  Object.values(nodeMap).forEach(n => {
+    if (n.inDegree === 0) { n.level = 0; queue.push(n.id); }
+  });
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    const node = nodeMap[cur];
+    node.children.forEach(childId => {
+      const child = nodeMap[childId];
+      if (child.level < node.level + 1) {
+        child.level = node.level + 1;
+        queue.push(childId);
+      }
     });
   }
 
-  // Bottom row R→L
-  const bottomCount = agents.length - topCount;
-  if (bottomCount > 0) {
-    const topMaxX = startX + (topCount - 1) * spacing;
-    for (let i = 0; i < bottomCount; i++) {
-      const n = nodes[topCount + i];
-      const id = n.id || agentToId(n.name);
+  // Group nodes by level
+  const levels = {};
+  Object.values(nodeMap).forEach(n => {
+    if (n.level < 0) n.level = 0; // orphans
+    if (!levels[n.level]) levels[n.level] = [];
+    levels[n.level].push(n.id);
+  });
+
+  const rowGap = 150;
+  const colSpacing = 170;
+  const startY = 75;
+
+  // Find widest level for centering
+  let maxWidth = 0;
+  Object.values(levels).forEach(ids => {
+    const w = ids.length * colSpacing;
+    if (w > maxWidth) maxWidth = w;
+  });
+  const centerX = Math.max(380, maxWidth / 2 + 80);
+
+  layoutNodes = [];
+  // Place nodes level by level
+  const levelKeys = Object.keys(levels).map(Number).sort((a, b) => a - b);
+  levelKeys.forEach(lvl => {
+    const ids = levels[lvl];
+    const totalW = (ids.length - 1) * colSpacing;
+    const offsetX = centerX - totalW / 2;
+    ids.forEach((id, i) => {
+      const n = nodes.find(nd => (nd.id || agentToId(nd.name)) === id) || { name: id };
       layoutNodes.push({
         id,
         name: n.name || id,
         emoji: agentEmoji(n.name || id),
         desc: agentDesc(n.name || id),
-        x: topMaxX - i * spacing,
-        y: 290,
+        x: offsetX + i * colSpacing,
+        y: startY + lvl * rowGap,
+        level: lvl,
       });
-    }
-  }
+    });
+  });
 
   // Layout edges
   const layoutEdges = edges.map(e => ({ from: e.from, to: e.to, label: e.label || '' }));
@@ -1029,10 +1067,14 @@ function buildGraph(nodes, edges) {
 
 function renderGraph(nodes, edges) {
   const flowSvg = document.getElementById('flow-svg');
-  let svgW = 0;
-  nodes.forEach(n => { svgW = Math.max(svgW, n.x + NODE_W / 2 + 30); });
+  let svgW = 0, svgH = 0;
+  nodes.forEach(n => {
+    svgW = Math.max(svgW, n.x + NODE_W / 2 + 30);
+    svgH = Math.max(svgH, n.y + NODE_H / 2 + 50);
+  });
   svgW = Math.max(760, svgW);
-  flowSvg.setAttribute('viewBox', `0 0 ${svgW} 430`);
+  svgH = Math.max(430, svgH);
+  flowSvg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
 
   const edgesLayer = document.getElementById('edges-layer');
   const nodesLayer = document.getElementById('nodes-layer');
@@ -1042,34 +1084,34 @@ function renderGraph(nodes, edges) {
   const nodeLookup = {};
   nodes.forEach(n => { nodeLookup[n.id] = n; });
 
-  // Draw edges
+  // Draw edges — DAG-aware routing
   edges.forEach(e => {
     const from = nodeLookup[e.from];
     const to = nodeLookup[e.to];
     if (!from || !to) return;
 
     let d, labelX, labelY;
-    if (from.y !== to.y) {
-      const x1 = from.x, y1 = from.y + NODE_H / 2;
-      const x2 = to.x, y2 = to.y - NODE_H / 2;
-      const midY = (y1 + y2) / 2;
-      d = `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`;
-      labelX = (x1 + x2) / 2 + 12;
-      labelY = midY;
-    } else if (from.x < to.x) {
+    const fromLevel = from.level !== undefined ? from.level : 0;
+    const toLevel = to.level !== undefined ? to.level : 0;
+
+    if (fromLevel === toLevel) {
+      // Same level — horizontal curve
       const x1 = from.x + NODE_W / 2, y1 = from.y;
       const x2 = to.x - NODE_W / 2, y2 = to.y;
       const midX = (x1 + x2) / 2;
       d = `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`;
       labelX = midX;
-      labelY = y1 - 10;
+      labelY = Math.min(y1, y2) - 10;
     } else {
-      const x1 = from.x - NODE_W / 2, y1 = from.y;
-      const x2 = to.x + NODE_W / 2, y2 = to.y;
-      const midX = (x1 + x2) / 2;
-      d = `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`;
-      labelX = midX;
-      labelY = y1 - 10;
+      // Downward (parent → child): bottom of source to top of target
+      const x1 = from.x, y1 = from.y + NODE_H / 2;
+      const x2 = to.x, y2 = to.y - NODE_H / 2;
+      const dy = y2 - y1;
+      const cp1y = y1 + dy * 0.4;
+      const cp2y = y2 - dy * 0.4;
+      d = `M${x1},${y1} C${x1},${cp1y} ${x2},${cp2y} ${x2},${y2}`;
+      labelX = (x1 + x2) / 2 + 12;
+      labelY = (y1 + y2) / 2;
     }
 
     const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -1492,7 +1534,8 @@ function connectSSE(scenarioName, speed) {
 // ─── Embedded Mode (file:// fallback) ────────────────────────────────────────
 
 // Embedded scenario for GitHub Pages / file:// mode
-const EMBEDDED_SCENARIO = [
+const EMBEDDED_SCENARIOS = {
+"nsc-pipeline": [
 {"type":"squad-start","squad":"nirvana-squad-creator","prefix":"nsc","version":"1.0.0","totalAgents":8,"timestamp":"2026-03-09T10:00:00Z"},
 {"type":"flow-preview","squad":"nirvana-squad-creator","prefix":"nsc","nodes":[{"id":"analyzer","name":"squad-analyzer","order":0},{"id":"agent-creator","name":"squad-agent-creator","order":1},{"id":"task-creator","name":"squad-task-creator","order":2},{"id":"workflow-creator","name":"squad-workflow-creator","order":3},{"id":"optimizer","name":"squad-optimizer","order":4},{"id":"validator","name":"squad-validator","order":5},{"id":"readme-creator","name":"squad-readme-creator","order":6},{"id":"publisher","name":"squad-publisher","order":7}],"edges":[{"from":"analyzer","to":"agent-creator"},{"from":"agent-creator","to":"task-creator"},{"from":"task-creator","to":"workflow-creator"},{"from":"workflow-creator","to":"optimizer"},{"from":"optimizer","to":"validator"},{"from":"validator","to":"readme-creator"},{"from":"readme-creator","to":"publisher"}],"totalAgents":8,"timestamp":"2026-03-09T10:00:00Z"},
 {"type":"agent-start","squad":"nirvana-squad-creator","prefix":"nsc","agent":"squad-analyzer","progress":"1/8","timestamp":"2026-03-09T10:00:02Z"},
@@ -1564,7 +1607,160 @@ const EMBEDDED_SCENARIO = [
 {"type":"agent-end","squad":"nirvana-squad-creator","prefix":"nsc","agent":"squad-publisher","duration":"30s","timestamp":"2026-03-09T10:07:10Z"},
 {"type":"flow-complete","squad":"nirvana-squad-creator","prefix":"nsc","totalDuration":"7m 12s","agentsExecuted":8,"totalAgents":8,"path":["squad-analyzer","squad-agent-creator","squad-task-creator","squad-workflow-creator","squad-optimizer","squad-validator","squad-readme-creator","squad-publisher"],"timestamp":"2026-03-09T10:07:12Z"},
 {"type":"squad-end","squad":"nirvana-squad-creator","prefix":"nsc","status":"success","totalDuration":"7m 12s","agentsExecuted":8,"tasksExecuted":22,"timestamp":"2026-03-09T10:07:14Z"}
-];
+],
+"sfm-full-funnel": [
+{"type":"squad-start","squad":"sales-funnel-masters","prefix":"sfm","version":"1.0.0","totalAgents":21,"timestamp":"2026-03-10T14:00:00Z"},
+{"type":"flow-preview","squad":"sales-funnel-masters","prefix":"sfm","nodes":[{"id":"orchestrator","name":"sfm-orchestrator","order":0},{"id":"hormozi","name":"sfm-hormozi","order":1},{"id":"schwartz","name":"sfm-schwartz","order":2},{"id":"kahneman","name":"sfm-kahneman","order":3},{"id":"walker","name":"sfm-walker","order":4},{"id":"miller","name":"sfm-miller","order":5},{"id":"sobral","name":"sfm-sobral","order":6},{"id":"cardone","name":"sfm-cardone","order":7},{"id":"campbell","name":"sfm-campbell","order":8},{"id":"halbert","name":"sfm-halbert","order":9},{"id":"cialdini","name":"sfm-cialdini","order":10},{"id":"rocha","name":"sfm-rocha","order":11},{"id":"godin","name":"sfm-godin","order":12},{"id":"vaynerchuk","name":"sfm-vaynerchuk","order":13},{"id":"belfort","name":"sfm-belfort","order":14},{"id":"brunson","name":"sfm-brunson","order":15},{"id":"kennedy","name":"sfm-kennedy","order":16},{"id":"eyal","name":"sfm-eyal","order":17},{"id":"voss","name":"sfm-voss","order":18},{"id":"carvalho","name":"sfm-carvalho","order":19},{"id":"suby","name":"sfm-suby","order":20}],"edges":[{"from":"orchestrator","to":"hormozi"},{"from":"orchestrator","to":"schwartz"},{"from":"orchestrator","to":"kahneman"},{"from":"orchestrator","to":"walker"},{"from":"orchestrator","to":"miller"},{"from":"orchestrator","to":"sobral"},{"from":"orchestrator","to":"cardone"},{"from":"hormozi","to":"campbell"},{"from":"campbell","to":"brunson"},{"from":"schwartz","to":"halbert"},{"from":"halbert","to":"kennedy"},{"from":"kennedy","to":"carvalho"},{"from":"kahneman","to":"cialdini"},{"from":"cialdini","to":"eyal"},{"from":"walker","to":"rocha"},{"from":"miller","to":"godin"},{"from":"sobral","to":"vaynerchuk"},{"from":"cardone","to":"belfort"},{"from":"belfort","to":"voss"},{"from":"voss","to":"suby"}],"totalAgents":21,"timestamp":"2026-03-10T14:00:00Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-orchestrator","progress":"1/21","timestamp":"2026-03-10T14:00:02Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-orchestrator","task":"plan-strategy","timestamp":"2026-03-10T14:00:04Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-orchestrator","task":"plan-strategy","result":"success","timestamp":"2026-03-10T14:00:20Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-orchestrator","task":"coordinate-team","timestamp":"2026-03-10T14:00:22Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-orchestrator","task":"coordinate-team","result":"success","timestamp":"2026-03-10T14:00:38Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-orchestrator","duration":"38s","timestamp":"2026-03-10T14:00:40Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-orchestrator","to":"sfm-hormozi","progress":"1/21","handoff":"strategy-plan.json","timestamp":"2026-03-10T14:00:42Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-orchestrator","to":"sfm-schwartz","progress":"1/21","handoff":"strategy-plan.json","timestamp":"2026-03-10T14:00:42Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-orchestrator","to":"sfm-kahneman","progress":"1/21","handoff":"strategy-plan.json","timestamp":"2026-03-10T14:00:42Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-orchestrator","to":"sfm-walker","progress":"1/21","handoff":"strategy-plan.json","timestamp":"2026-03-10T14:00:42Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-orchestrator","to":"sfm-miller","progress":"1/21","handoff":"strategy-plan.json","timestamp":"2026-03-10T14:00:42Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-orchestrator","to":"sfm-sobral","progress":"1/21","handoff":"strategy-plan.json","timestamp":"2026-03-10T14:00:42Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-orchestrator","to":"sfm-cardone","progress":"1/21","handoff":"strategy-plan.json","timestamp":"2026-03-10T14:00:42Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-hormozi","progress":"2/21","timestamp":"2026-03-10T14:00:44Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-schwartz","progress":"2/21","timestamp":"2026-03-10T14:00:44Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kahneman","progress":"2/21","timestamp":"2026-03-10T14:00:44Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-walker","progress":"2/21","timestamp":"2026-03-10T14:00:44Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-miller","progress":"2/21","timestamp":"2026-03-10T14:00:44Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-sobral","progress":"2/21","timestamp":"2026-03-10T14:00:44Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cardone","progress":"2/21","timestamp":"2026-03-10T14:00:44Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-hormozi","task":"craft-offer","timestamp":"2026-03-10T14:00:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-schwartz","task":"analyze-awareness","timestamp":"2026-03-10T14:00:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kahneman","task":"map-biases","timestamp":"2026-03-10T14:00:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-walker","task":"plan-launch","timestamp":"2026-03-10T14:00:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-miller","task":"create-brandscript","timestamp":"2026-03-10T14:00:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-sobral","task":"plan-traffic","timestamp":"2026-03-10T14:00:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cardone","task":"10x-sales-plan","timestamp":"2026-03-10T14:00:46Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-hormozi","task":"craft-offer","result":"success","timestamp":"2026-03-10T14:01:08Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-schwartz","task":"analyze-awareness","result":"success","timestamp":"2026-03-10T14:01:04Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kahneman","task":"map-biases","result":"success","timestamp":"2026-03-10T14:01:06Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-walker","task":"plan-launch","result":"success","timestamp":"2026-03-10T14:01:10Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-miller","task":"create-brandscript","result":"success","timestamp":"2026-03-10T14:01:02Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-sobral","task":"plan-traffic","result":"success","timestamp":"2026-03-10T14:01:12Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cardone","task":"10x-sales-plan","result":"success","timestamp":"2026-03-10T14:01:14Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-hormozi","task":"calculate-value-equation","timestamp":"2026-03-10T14:01:10Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-schwartz","task":"map-market-sophistication","timestamp":"2026-03-10T14:01:06Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kahneman","task":"frame-pricing-psychology","timestamp":"2026-03-10T14:01:08Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-walker","task":"create-plc-sequence","timestamp":"2026-03-10T14:01:12Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-miller","task":"write-one-liner","timestamp":"2026-03-10T14:01:04Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-sobral","task":"optimize-ads","timestamp":"2026-03-10T14:01:14Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cardone","task":"build-closing-script","timestamp":"2026-03-10T14:01:16Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-miller","task":"write-one-liner","result":"success","timestamp":"2026-03-10T14:01:22Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-miller","duration":"40s","timestamp":"2026-03-10T14:01:24Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-miller","to":"sfm-godin","progress":"3/21","handoff":"brandscript.md","timestamp":"2026-03-10T14:01:26Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-godin","progress":"3/21","timestamp":"2026-03-10T14:01:28Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-godin","task":"find-purple-cow","timestamp":"2026-03-10T14:01:30Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-schwartz","task":"map-market-sophistication","result":"success","timestamp":"2026-03-10T14:01:26Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-schwartz","duration":"44s","timestamp":"2026-03-10T14:01:28Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-schwartz","to":"sfm-halbert","progress":"4/21","handoff":"awareness-map.json","timestamp":"2026-03-10T14:01:30Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-halbert","progress":"4/21","timestamp":"2026-03-10T14:01:32Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-halbert","task":"write-sales-letter","timestamp":"2026-03-10T14:01:34Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kahneman","task":"frame-pricing-psychology","result":"success","timestamp":"2026-03-10T14:01:30Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kahneman","duration":"48s","timestamp":"2026-03-10T14:01:32Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-kahneman","to":"sfm-cialdini","progress":"5/21","handoff":"bias-framework.json","timestamp":"2026-03-10T14:01:34Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cialdini","progress":"5/21","timestamp":"2026-03-10T14:01:36Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cialdini","task":"design-influence","timestamp":"2026-03-10T14:01:38Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-hormozi","task":"calculate-value-equation","result":"success","timestamp":"2026-03-10T14:01:32Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-hormozi","duration":"50s","timestamp":"2026-03-10T14:01:34Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-hormozi","to":"sfm-campbell","progress":"6/21","handoff":"grand-slam-offer.json","timestamp":"2026-03-10T14:01:36Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-campbell","progress":"6/21","timestamp":"2026-03-10T14:01:38Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-campbell","task":"research-pricing","timestamp":"2026-03-10T14:01:40Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-walker","task":"create-plc-sequence","result":"success","timestamp":"2026-03-10T14:01:36Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-walker","duration":"54s","timestamp":"2026-03-10T14:01:38Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-walker","to":"sfm-rocha","progress":"7/21","handoff":"launch-sequence.json","timestamp":"2026-03-10T14:01:40Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-rocha","progress":"7/21","timestamp":"2026-03-10T14:01:42Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-rocha","task":"plan-launch-br","timestamp":"2026-03-10T14:01:44Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-sobral","task":"optimize-ads","result":"success","timestamp":"2026-03-10T14:01:40Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-sobral","duration":"58s","timestamp":"2026-03-10T14:01:42Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-sobral","to":"sfm-vaynerchuk","progress":"8/21","handoff":"traffic-plan.json","timestamp":"2026-03-10T14:01:44Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-vaynerchuk","progress":"8/21","timestamp":"2026-03-10T14:01:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-vaynerchuk","task":"plan-content","timestamp":"2026-03-10T14:01:48Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cardone","task":"build-closing-script","result":"success","timestamp":"2026-03-10T14:01:44Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cardone","duration":"62s","timestamp":"2026-03-10T14:01:46Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-cardone","to":"sfm-belfort","progress":"9/21","handoff":"10x-sales-script.md","timestamp":"2026-03-10T14:01:48Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-belfort","progress":"9/21","timestamp":"2026-03-10T14:01:50Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-belfort","task":"create-straight-line","timestamp":"2026-03-10T14:01:52Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-godin","task":"find-purple-cow","result":"success","timestamp":"2026-03-10T14:01:52Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-godin","task":"build-tribe","timestamp":"2026-03-10T14:01:54Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-campbell","task":"research-pricing","result":"success","timestamp":"2026-03-10T14:02:00Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-campbell","task":"optimize-monetization","timestamp":"2026-03-10T14:02:02Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-halbert","task":"write-sales-letter","result":"success","timestamp":"2026-03-10T14:01:58Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-halbert","task":"create-headline","timestamp":"2026-03-10T14:02:00Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cialdini","task":"design-influence","result":"success","timestamp":"2026-03-10T14:02:02Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cialdini","task":"audit-persuasion","timestamp":"2026-03-10T14:02:04Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-rocha","task":"plan-launch-br","result":"success","timestamp":"2026-03-10T14:02:06Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-rocha","task":"create-cpl-sequence","timestamp":"2026-03-10T14:02:08Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-vaynerchuk","task":"plan-content","result":"success","timestamp":"2026-03-10T14:02:10Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-vaynerchuk","task":"create-social-strategy","timestamp":"2026-03-10T14:02:12Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-belfort","task":"create-straight-line","result":"success","timestamp":"2026-03-10T14:02:16Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-belfort","task":"train-closing","timestamp":"2026-03-10T14:02:18Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-godin","task":"build-tribe","result":"success","timestamp":"2026-03-10T14:02:18Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-godin","duration":"52s","timestamp":"2026-03-10T14:02:20Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-halbert","task":"create-headline","result":"success","timestamp":"2026-03-10T14:02:22Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-halbert","duration":"52s","timestamp":"2026-03-10T14:02:24Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-halbert","to":"sfm-kennedy","progress":"11/21","handoff":"sales-letter.md","timestamp":"2026-03-10T14:02:26Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kennedy","progress":"11/21","timestamp":"2026-03-10T14:02:28Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kennedy","task":"create-magnetic-marketing","timestamp":"2026-03-10T14:02:30Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cialdini","task":"audit-persuasion","result":"success","timestamp":"2026-03-10T14:02:28Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-cialdini","duration":"54s","timestamp":"2026-03-10T14:02:30Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-cialdini","to":"sfm-eyal","progress":"12/21","handoff":"influence-audit.json","timestamp":"2026-03-10T14:02:32Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-eyal","progress":"12/21","timestamp":"2026-03-10T14:02:34Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-eyal","task":"design-hook-model","timestamp":"2026-03-10T14:02:36Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-campbell","task":"optimize-monetization","result":"success","timestamp":"2026-03-10T14:02:30Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-campbell","duration":"54s","timestamp":"2026-03-10T14:02:32Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-campbell","to":"sfm-brunson","progress":"13/21","handoff":"pricing-strategy.json","timestamp":"2026-03-10T14:02:34Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-brunson","progress":"13/21","timestamp":"2026-03-10T14:02:36Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-brunson","task":"design-funnel","timestamp":"2026-03-10T14:02:38Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-rocha","task":"create-cpl-sequence","result":"success","timestamp":"2026-03-10T14:02:34Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-rocha","duration":"54s","timestamp":"2026-03-10T14:02:36Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-vaynerchuk","task":"create-social-strategy","result":"success","timestamp":"2026-03-10T14:02:38Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-vaynerchuk","duration":"54s","timestamp":"2026-03-10T14:02:40Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-belfort","task":"train-closing","result":"success","timestamp":"2026-03-10T14:02:42Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-belfort","duration":"54s","timestamp":"2026-03-10T14:02:44Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-belfort","to":"sfm-voss","progress":"16/21","handoff":"straight-line-system.md","timestamp":"2026-03-10T14:02:46Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-voss","progress":"16/21","timestamp":"2026-03-10T14:02:48Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-voss","task":"build-negotiation","timestamp":"2026-03-10T14:02:50Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kennedy","task":"create-magnetic-marketing","result":"success","timestamp":"2026-03-10T14:02:52Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kennedy","task":"write-direct-response","timestamp":"2026-03-10T14:02:54Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-eyal","task":"design-hook-model","result":"success","timestamp":"2026-03-10T14:02:58Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-eyal","task":"optimize-retention","timestamp":"2026-03-10T14:03:00Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-brunson","task":"design-funnel","result":"success","timestamp":"2026-03-10T14:03:04Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-brunson","task":"create-value-ladder","timestamp":"2026-03-10T14:03:06Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-voss","task":"build-negotiation","result":"success","timestamp":"2026-03-10T14:03:10Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-voss","task":"handle-objection","timestamp":"2026-03-10T14:03:12Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kennedy","task":"write-direct-response","result":"success","timestamp":"2026-03-10T14:03:16Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-kennedy","duration":"50s","timestamp":"2026-03-10T14:03:18Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-kennedy","to":"sfm-carvalho","progress":"18/21","handoff":"direct-response-copy.md","timestamp":"2026-03-10T14:03:20Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-carvalho","progress":"18/21","timestamp":"2026-03-10T14:03:22Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-carvalho","task":"write-copy-br","timestamp":"2026-03-10T14:03:24Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-eyal","task":"optimize-retention","result":"success","timestamp":"2026-03-10T14:03:22Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-eyal","duration":"50s","timestamp":"2026-03-10T14:03:24Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-brunson","task":"create-value-ladder","result":"success","timestamp":"2026-03-10T14:03:30Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-brunson","duration":"56s","timestamp":"2026-03-10T14:03:32Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-voss","task":"handle-objection","result":"success","timestamp":"2026-03-10T14:03:36Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-voss","duration":"50s","timestamp":"2026-03-10T14:03:38Z"},
+{"type":"flow-transition","squad":"sales-funnel-masters","prefix":"sfm","from":"sfm-voss","to":"sfm-suby","progress":"20/21","handoff":"objection-scripts.md","timestamp":"2026-03-10T14:03:40Z"},
+{"type":"agent-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-suby","progress":"20/21","timestamp":"2026-03-10T14:03:42Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-suby","task":"build-selling-system","timestamp":"2026-03-10T14:03:44Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-carvalho","task":"write-copy-br","result":"success","timestamp":"2026-03-10T14:03:46Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-carvalho","task":"create-narrative","timestamp":"2026-03-10T14:03:48Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-carvalho","task":"create-narrative","result":"success","timestamp":"2026-03-10T14:04:08Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-carvalho","duration":"48s","timestamp":"2026-03-10T14:04:10Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-suby","task":"build-selling-system","result":"success","timestamp":"2026-03-10T14:04:08Z"},
+{"type":"task-start","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-suby","task":"create-godfather-offer","timestamp":"2026-03-10T14:04:10Z"},
+{"type":"task-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-suby","task":"create-godfather-offer","result":"success","timestamp":"2026-03-10T14:04:32Z"},
+{"type":"agent-end","squad":"sales-funnel-masters","prefix":"sfm","agent":"sfm-suby","duration":"52s","timestamp":"2026-03-10T14:04:34Z"},
+{"type":"flow-complete","squad":"sales-funnel-masters","prefix":"sfm","totalDuration":"4m 36s","agentsExecuted":21,"totalAgents":21,"path":["sfm-orchestrator","sfm-hormozi","sfm-schwartz","sfm-kahneman","sfm-walker","sfm-miller","sfm-sobral","sfm-cardone","sfm-campbell","sfm-halbert","sfm-cialdini","sfm-rocha","sfm-godin","sfm-vaynerchuk","sfm-belfort","sfm-brunson","sfm-kennedy","sfm-eyal","sfm-voss","sfm-carvalho","sfm-suby"],"timestamp":"2026-03-10T14:04:36Z"},
+{"type":"squad-end","squad":"sales-funnel-masters","prefix":"sfm","status":"success","totalDuration":"4m 36s","agentsExecuted":21,"tasksExecuted":42,"timestamp":"2026-03-10T14:04:38Z"}
+]
+};
 
 function playEmbedded(events, speed) {
   resetState();
@@ -1648,7 +1844,7 @@ function play() {
   if (isSSEAvailable) {
     connectSSE(scenario, speed);
   } else {
-    playEmbedded(EMBEDDED_SCENARIO, speed);
+    playEmbedded(EMBEDDED_SCENARIOS[scenario] || Object.values(EMBEDDED_SCENARIOS)[0], speed);
   }
 }
 
