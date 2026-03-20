@@ -21,59 +21,60 @@ Skills are AI agent instructions installed via `npx skills add`. They live in `s
 
 ## Squads
 
-Squads are self-contained multi-agent teams managed by the `squads` skill. They are **not** installed via skills.sh — they are directories with agents, tasks, and workflows.
+Squads are self-contained multi-agent teams managed by the `squads` skill. They are directories with agents, tasks, and workflows.
 
 | Squad | Agents | Description |
 |---|---|---|
 | **[nirvana-squad-creator](squads/nirvana-squad-creator/)** | 9 | Meta-squad that generates new squads from requirements |
 | **[ultimate-landingpage](squads/ultimate-landingpage/)** | 9 | Full landing page pipeline — research, copy, design, build, review |
 
-## Squad Flow Tracker
+## Squad Lifecycle Triggers
 
-Two modes to visualize squad execution:
+Squads can emit lifecycle events that track execution in real time. Triggers are **opt-in** per squad via `squad.yaml`:
 
-### Demo (Static — GitHub Pages)
-
-Zero-setup interactive replay with embedded scenarios. No server needed.
-
-**[View Live Demo](https://gutomec.github.io/ai-public-arsenal/demo/)** · [Source](demo/)
-
-- Embedded replay of recorded squad executions
-- BFS-level graph layout with parallel team visualization
-- Includes: **sales-funnel-masters** (21 agents, hub-and-spoke) and **nirvana-squad-creator** (8 agents, sequential pipeline)
-- Works directly from `file://` or GitHub Pages
-
-### Dashboard (Live — SSE Server)
-
-Real-time dashboard that connects to your running project, monitoring agents, squads, tasks, and everything being executed as it happens.
-
-```bash
-cd demo
-node server.js
-# → http://localhost:3001
+```yaml
+triggers:
+  enabled: true
+  display: inline    # inline | log | both
+  events:
+    squad: true      # squad start/end
+    agent: true      # agent start/end
+    task: true       # task start/end
+  flow:
+    enabled: true    # flow tracking between agents
+    live: true       # real-time transitions
+    preview: true    # show planned flow before execution
+    summary: true    # show summary after execution
 ```
 
-- Reads `.jsonl` scenario files from `demo/scenarios/` and replays via SSE
-- Auto-detects new recordings from `.aios/squad-triggers/`
-- Live event stream with real-time graph updates
-- Speed control: 1x, 2x, 5x, 10x, or instant
+### How It Works
 
-**Recording your own executions:**
+Triggers are emitted as **stream markers** — structured HTML comments in the Claude output:
 
-1. Enable triggers in your squad's `squad.yaml`:
-   ```yaml
-   triggers:
-     enabled: true
-   ```
+```
+<!-- squad:event {"type":"squad-start","squad":"brandcraft","prefix":"bc","version":"1.0.0"} -->
+<!-- squad:event {"type":"agent-start","squad":"brandcraft","agent":"bc-extractor","progress":"1/6"} -->
+<!-- squad:event {"type":"flow-transition","squad":"brandcraft","from":"bc-extractor","to":"bc-inspector","handoff":"brand-assets.json"} -->
+<!-- squad:event {"type":"flow-complete","squad":"brandcraft","totalDuration":"13m 45s","agentsExecuted":6} -->
+```
 
-2. Run the squad — events are written to `.aios/squad-triggers/{squad-name}.jsonl`
+**Universal compatibility:**
+- Frontends that understand the format (like [squad-chat](https://github.com/gutomec/squad-chat)) parse them into rich visual surfaces — flow graphs, progress bars, agent status indicators
+- Terminals and other frontends simply ignore them (they're HTML comments)
+- No hooks, files on disk, or separate servers required
 
-3. Copy to scenarios:
-   ```bash
-   cp .aios/squad-triggers/my-squad.jsonl demo/scenarios/
-   ```
+**Optional JSONL logging** — set `display: log` or `display: both` to also persist events to `.aios/squad-triggers/{squad}.jsonl` for offline analysis.
 
-4. Restart the server — the new scenario appears in the dropdown automatically.
+### Frontend Detection (Dual Mode)
+
+Smart frontends can detect squad activity from two complementary sources:
+
+| Source | How | What you get |
+|---|---|---|
+| **Stream markers** (primary) | Parse `<!-- squad:event {...} -->` from text | Rich data: squad name, version, agent icons, handoff artifacts, progress |
+| **Tool call patterns** (inference) | Detect `Read squads/X/squad.yaml`, `Read agents/*.md` sequences | Coverage even when markers aren't emitted |
+
+See [triggers-protocol.md](skills/squads/references/triggers-protocol.md) and [flow-tracker-protocol.md](skills/squads/references/flow-tracker-protocol.md) for full specs.
 
 ## Structure
 
@@ -84,10 +85,7 @@ ai-public-arsenal/
 ├── squads/           # Squad definitions (managed by the squads skill)
 │   ├── nirvana-squad-creator/
 │   └── ultimate-landingpage/
-└── demo/             # Squad Flow Tracker (Demo + Dashboard)
-    ├── index.html    # Dual-mode viewer (static demo / SSE dashboard)
-    ├── server.js     # SSE replay server (zero dependencies)
-    └── scenarios/    # JSONL scenario recordings
+└── README.md
 ```
 
 ## License

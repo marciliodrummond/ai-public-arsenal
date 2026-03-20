@@ -8,7 +8,7 @@ argument-hint: "[command] [args]"
 context: fork
 metadata:
   author: gutomec
-  version: "2.0"
+  version: "3.0"
 ---
 
 # Squad Manager — Standalone Multi-Agent Team Orchestrator
@@ -44,7 +44,6 @@ User request → Classify:
 │
 ├─ TRIGGERS → Manage squad lifecycle triggers
 │  ACTION: Read .claude/skills/squads/references/triggers-protocol.md
-│  ACTION: Read .claude/skills/squads/references/hooks-setup-protocol.md
 │
 └─ WORKFLOW → Create or run collaboration workflows
    ACTION: Read .claude/skills/squads/references/workflow-schema.md
@@ -63,7 +62,7 @@ User request → Classify:
 | **REGISTER** | register, unregister, activate, deactivate, enable, disable |
 | **VALIDATE** | validate, check, verify, audit, lint squad |
 | **DEPS** | install deps, dependencies, pnpm, uv, node_modules, venv, packages, check deps |
-| **TRIGGERS** | triggers, lifecycle, events, tracking, metrics, squad start, squad end, duration, telemetry, flow, delegation, handoff, preview, summary, diagram, mapa, a2ui, visualização |
+| **TRIGGERS** | triggers, lifecycle, events, tracking, metrics, squad start, squad end, duration, telemetry, flow, delegation, handoff, preview, summary, diagram |
 | **WORKFLOW** | workflow, pipeline, collaboration, run workflow, flow, teams, agent teams, team pattern |
 
 ## Quick Commands
@@ -84,12 +83,11 @@ User request → Classify:
 | `*enable-triggers {name}` | Habilitar triggers no squad.yaml |
 | `*disable-triggers {name}` | Desabilitar triggers no squad.yaml |
 | `*show-triggers {name}` | Mostrar config de triggers do squad |
-| `*trigger-log {name}` | Mostrar histórico de triggers |
-| `*flow-preview {squad} {workflow}` | Mostra mapa do fluxo planejado (terminal + A2UI) |
+| `*trigger-log {name}` | Mostrar histórico de triggers do arquivo JSONL |
+| `*flow-preview {squad} {workflow}` | Mostra mapa do fluxo planejado |
 | `*flow-summary {squad}` | Mostra diagrama do fluxo executado |
 | `*flow-live {squad}` | Habilita/desabilita tracking em tempo real |
-| `*setup-hooks` | Instalar Claude Code Hooks para trigger emission automática |
-| `*validate-squad {name}` | Run 23-check validation |
+| `*validate-squad {name}` | Run 26-check validation |
 | `*run-workflow {squad} {wf}` | Execute squad workflow |
 
 ## Squad Directory Structure
@@ -119,14 +117,13 @@ squads/{squad-name}/
 **On EVERY squad operation**, check if the target squad has triggers enabled:
 
 1. Read `squads/{squad}/squad.yaml` → check `triggers.enabled === true`
-2. If enabled, emit JSONL events by appending to the logPath file using Bash:
+2. If enabled, emit **stream markers** — structured HTML comments in output text:
 
-```bash
-# Emit trigger event (append JSONL line)
-echo '{"type":"EVENT_TYPE","squad":"SQUAD","prefix":"PREFIX","agent":"AGENT","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> .aios/squad-triggers/SQUAD.jsonl
+```
+<!-- squad:event {"type":"EVENT_TYPE","squad":"SQUAD","prefix":"PREFIX","agent":"AGENT"} -->
 ```
 
-3. **When to emit:**
+3. **When to emit markers:**
    - `squad-start`: At the very beginning of any squad activation
    - `agent-start`: Before each agent begins work
    - `task-start`: Before each `*command` executes
@@ -137,21 +134,15 @@ echo '{"type":"EVENT_TYPE","squad":"SQUAD","prefix":"PREFIX","agent":"AGENT","ti
    - `flow-complete`: After workflow finishes (add `"totalDuration"`, `"agentsExecuted"`)
    - `squad-end`: At the very end of the session
 
-4. **Always create logPath directory first:** `mkdir -p .aios/squad-triggers/`
-5. If `triggers.enabled` is false or absent → skip all trigger emission silently
+4. **Stream markers work everywhere** — any platform that shows Claude output will show them. Frontends that understand the format parse them into rich UIs. Others ignore them (HTML comments).
 
-## Hooks Auto-Setup Protocol
+5. **JSONL logging (optional):** If `display: log` or `display: both`, ALSO append events to `.aios/squad-triggers/{squad}.jsonl`:
+   ```bash
+   mkdir -p .aios/squad-triggers/
+   echo '{"type":"EVENT_TYPE","squad":"SQUAD",...,"timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> .aios/squad-triggers/SQUAD.jsonl
+   ```
 
-**For reliable automatic trigger emission**, the Squad Manager MUST install Claude Code Hooks when triggers are enabled.
-
-**When to check:** On `*enable-triggers`, `*setup-hooks`, or when first detecting `triggers.enabled: true` in any squad.yaml.
-
-**How to setup:** Read `.claude/skills/squads/references/hooks-setup-protocol.md` and follow the 3-step protocol:
-1. Create hook file at `.claude/hooks/squad-trigger-emitter.cjs`
-2. Register in `.claude/settings.local.json` (PreToolUse:Skill + PostToolUse)
-3. Verify with `node -c` and grep
-
-**CRITICAL:** Without hooks, trigger emission relies on manual Bash commands above (fallback). Hooks provide automatic, reliable emission on every tool call. Always prefer hooks when running on Claude Code.
+6. If `triggers.enabled` is false or absent → skip all trigger emission silently
 
 ## Anti-Patterns (NEVER)
 

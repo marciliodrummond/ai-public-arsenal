@@ -22,9 +22,9 @@ triggers:
 
 | Valor | Comportamento |
 |-------|---------------|
-| `inline` | Emite triggers diretamente no chat (default) |
+| `inline` | Emite triggers como text markers no output (default) |
 | `log` | Grava triggers em arquivo JSONL no `logPath`, sem output no chat |
-| `both` | Emite no chat E grava em arquivo |
+| `both` | Emite markers no output E grava em arquivo |
 
 ### Valores de `metrics`
 
@@ -42,102 +42,128 @@ Cada tipo de evento pode ser habilitado/desabilitado individualmente:
 - `agent`: Triggers quando um agent inicia/finaliza
 - `task`: Triggers quando um `*command` é executado/completado
 
-## Formato de Output
+## Mecanismo de Emissão: Stream Markers
 
-### Squad Start Trigger
+Triggers são emitidos como **HTML comments estruturados** no output de texto do Claude. Isso funciona em qualquer plataforma (terminal, squad-chat, Cursor, etc.) porque está no stdout normal.
 
-```
-🚀 [SQUAD:{prefix}] {squad-name} v{version} ativado
-   Agent: {icon} {agent-name} ({agent-id})
-   Missão: {agent-title}
-   Início: {timestamp}
-```
-
-### Task Start Trigger
+### Formato do marker
 
 ```
-⚡ [TASK:{prefix}] *{command} iniciado
-   Agent: {agent-id}
-   Descrição: {command-description}
+<!-- squad:event {"type":"EVENT_TYPE","squad":"NAME",...} -->
 ```
 
-### Task End Trigger
+**Regras:**
+- Sempre uma única linha
+- Sempre começa com `<!-- squad:event `
+- Sempre termina com ` -->`
+- O payload é JSON válido
+- Frontends que entendem o formato podem parsear e renderizar UIs ricas
+- Frontends que NÃO entendem simplesmente ignoram (é um HTML comment)
 
-```
-✅ [TASK:{prefix}] {agent-name} completou *{command}
-   Duração: {duration}
-   Contexto usado: {delta}%
-   Timestamp: {end-time}
-```
+### Eventos
 
-### Squad End Trigger
-
+#### squad-start
 ```
-🏁 [SQUAD:{prefix}] {squad-name} sessão encerrada
-   Duração total: {total-duration}
-   Tasks executadas: {count}
-   Timestamp: {end-time}
+<!-- squad:event {"type":"squad-start","squad":"brandcraft","prefix":"bc","version":"1.0.0","agents":["bc-extractor","bc-inspector"]} -->
 ```
 
-## Como o Squad Manager Executa Triggers
-
-Quando um usuário ativa um squad agent via `/SQUADS:{name}:{agent}`:
-
-1. **Ler `squad.yaml`** do squad ativado
-2. **Verificar `triggers.enabled === true`** — se `false` ou ausente, pular todos os triggers
-3. **Verificar `events`** — emitir apenas os tipos habilitados
-4. **No início da ativação:**
-   - Registrar timestamp de início
-   - Se `events.squad: true` → emitir Squad Start Trigger
-   - Se `events.agent: true` → emitir Agent info no trigger
-5. **No início de cada `*command`:**
-   - Se `events.task: true` → emitir Task Start Trigger
-   - Registrar timestamp de início da task
-6. **Ao final de cada `*command`:**
-   - Se `events.task: true` → emitir Task End Trigger com duração
-   - Calcular métricas conforme `metrics` configurado
-7. **Ao final da sessão:**
-   - Se `events.squad: true` → emitir Squad End Trigger
-8. **Se `display: log` ou `display: both`:**
-   - Gravar cada trigger como linha JSONL no `logPath`
-
-### Formato JSONL (para log)
-
-```json
-{"type":"squad-start","squad":"my-squad","prefix":"ms","version":"1.0.0","agent":"ms-leader","timestamp":"2026-03-08T10:00:00Z"}
-{"type":"task-start","squad":"my-squad","prefix":"ms","agent":"ms-leader","command":"plan-work","timestamp":"2026-03-08T10:00:05Z"}
-{"type":"task-end","squad":"my-squad","prefix":"ms","agent":"ms-leader","command":"plan-work","duration":"2m 15s","contextDelta":"12%","timestamp":"2026-03-08T10:02:20Z"}
-{"type":"squad-end","squad":"my-squad","prefix":"ms","totalDuration":"5m 30s","tasksExecuted":3,"timestamp":"2026-03-08T10:05:30Z"}
+#### agent-start
+```
+<!-- squad:event {"type":"agent-start","squad":"brandcraft","prefix":"bc","agent":"bc-extractor","icon":"🔍","progress":"1/6"} -->
 ```
 
-### Campos de Flow nos Eventos JSONL
-
-Quando `triggers.flow.enabled: true`, os eventos JSONL incluem campos adicionais de delegação:
-
-```json
-{"type":"agent-start","squad":"brandcraft","prefix":"bc","agent":"bc-inspector","from":"bc-extractor","to":"bc-templater","handoff":"brand-assets.json","progress":"2/6","timestamp":"2026-03-08T10:02:20Z"}
-{"type":"agent-end","squad":"brandcraft","prefix":"bc","agent":"bc-inspector","from":"bc-extractor","to":"bc-templater","duration":"1m 30s","contextDelta":"8%","timestamp":"2026-03-08T10:03:50Z"}
+#### agent-end
+```
+<!-- squad:event {"type":"agent-end","squad":"brandcraft","prefix":"bc","agent":"bc-extractor","duration":"2m 15s"} -->
 ```
 
-| Campo Extra | Tipo | Descrição |
-|-------------|------|-----------|
-| `from` | string | Agent que delegou para este (agent anterior no fluxo) |
+#### task-start
+```
+<!-- squad:event {"type":"task-start","squad":"brandcraft","prefix":"bc","agent":"bc-extractor","command":"extract-brand"} -->
+```
+
+#### task-end
+```
+<!-- squad:event {"type":"task-end","squad":"brandcraft","prefix":"bc","agent":"bc-extractor","command":"extract-brand","duration":"1m 30s"} -->
+```
+
+#### flow-transition
+```
+<!-- squad:event {"type":"flow-transition","squad":"brandcraft","prefix":"bc","from":"bc-extractor","to":"bc-inspector","handoff":"brand-assets.json","progress":"2/6"} -->
+```
+
+#### flow-complete
+```
+<!-- squad:event {"type":"flow-complete","squad":"brandcraft","prefix":"bc","totalDuration":"13m 45s","agentsExecuted":6,"tasksExecuted":8} -->
+```
+
+#### flow-error
+```
+<!-- squad:event {"type":"flow-error","squad":"brandcraft","prefix":"bc","error":"Review failed","failedAgent":"bc-reviewer"} -->
+```
+
+#### squad-end
+```
+<!-- squad:event {"type":"squad-end","squad":"brandcraft","prefix":"bc","totalDuration":"15m 30s","tasksExecuted":8} -->
+```
+
+### Campos de Flow
+
+Quando `triggers.flow.enabled: true`, os eventos incluem campos adicionais de delegação:
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `from` | string | Agent que delegou para este |
 | `to` | string | Próximo agent que receberá o handoff |
 | `handoff` | string | Nome do artefato transferido |
 | `progress` | string | Progresso no formato `current/total` |
 
-Esses campos são **opcionais** — só presentes quando flow tracking está habilitado. Eventos de squads sem `triggers.flow` permanecem inalterados.
+## Fallback: JSONL em Disco
 
-## Flow Tracking
+Para uso standalone (terminal sem frontend), o display `log` ou `both` TAMBÉM grava cada trigger como JSONL:
 
-O Flow Tracker estende os triggers com rastreamento visual de delegação entre agents. Quando habilitado via `triggers.flow` no `squad.yaml`, o Squad Manager emite eventos NDJSON adicionais que alimentam dois renderers: terminal (ASCII) e browser (A2UI).
+```bash
+# Criar diretório e gravar (fallback apenas quando display=log|both)
+mkdir -p .aios/squad-triggers/
+echo '{"type":"squad-start","squad":"brandcraft","prefix":"bc","timestamp":"2026-03-19T20:00:00Z"}' >> .aios/squad-triggers/brandcraft.jsonl
+```
 
-**Referência completa:** Ver `flow-tracker-protocol.md` para:
-- Schema NDJSON dos eventos de flow (`flow-preview`, `flow-transition`, `flow-complete`, `flow-error`, `flow-loop`)
-- Terminal renderer (preview, live, summary em ASCII)
-- A2UI renderer (custom catalog, createSurface, updateComponents, updateDataModel)
-- Algoritmo de construção do grafo a partir do workflow YAML
-- Validação cruzada com `Receives From` / `Hands Off To` dos agents
+**Stream markers são SEMPRE emitidos quando triggers estão habilitados.** O JSONL é adicional, apenas quando `display: log | both`.
+
+## Como o Squad Manager Executa Triggers
+
+1. **Ler `squad.yaml`** — verificar `triggers.enabled === true`
+2. **Verificar `events`** — emitir apenas os tipos habilitados
+3. **No início da ativação:**
+   - Registrar timestamp de início
+   - Se `events.squad: true` → emitir marker `squad-start`
+   - Se `events.agent: true` → emitir marker `agent-start`
+4. **No início de cada `*command`:**
+   - Se `events.task: true` → emitir marker `task-start`
+5. **Ao final de cada `*command`:**
+   - Se `events.task: true` → emitir marker `task-end` com duração
+6. **Em transições agent→agent:**
+   - Se `triggers.flow.enabled: true` → emitir marker `flow-transition`
+7. **Ao final do workflow:**
+   - Se `triggers.flow.enabled: true` → emitir marker `flow-complete`
+8. **Ao final da sessão:**
+   - Se `events.squad: true` → emitir marker `squad-end`
+
+## Detecção por Frontends
+
+Frontends como squad-chat podem detectar squad activity de **duas formas complementares**:
+
+### 1. Stream markers (primário)
+Parsear `<!-- squad:event {...} -->` do output de texto do Claude. Mais confiável — o Squad Manager emite explicitamente.
+
+### 2. Tool call patterns (inferência)
+Detectar padrões de tool calls no stream-json:
+- `Read squads/X/squad.yaml` → squad ativado
+- `Read squads/X/agents/*.md` → agent lido
+- Sequência de `Read agents/A.md` → `Read agents/B.md` → transição A→B
+- `subagent` / `squad_dispatch` → delegação explícita
+
+A combinação das duas abordagens garante cobertura completa — markers dão dados ricos (nomes, versões, progresso), tool patterns dão cobertura mesmo quando markers não são emitidos.
 
 ## Métricas Disponíveis
 
@@ -145,7 +171,6 @@ O Flow Tracker estende os triggers com rastreamento visual de delegação entre 
 |---------|-----------|---------------|
 | Duração | Diff entre timestamp de início e fim | `Date.now()` no start/end |
 | Context delta % | Estimativa de contexto consumido | Comparação de prompt size |
-| Contagem de tools | Estimativa de tools usadas | Contagem via prompts intermediários |
 | Tasks executadas | Número de `*commands` rodados | Incremento por task completada |
 
 ## Comandos de Gerenciamento

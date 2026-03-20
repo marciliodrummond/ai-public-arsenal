@@ -1,4 +1,4 @@
-# Flow Tracker Protocol — Rastreamento de Delegação + Visualização A2UI
+# Flow Tracker Protocol — Rastreamento de Delegação entre Agents
 
 ## Visão Geral
 
@@ -9,118 +9,87 @@ Opera em três momentos:
 2. **Live** (durante) — transições em tempo real
 3. **Summary** (depois) — diagrama completo com métricas
 
-Emite eventos em formato **NDJSON estruturado** que alimenta dois renderers:
+O mecanismo primário são **stream markers** — HTML comments estruturados emitidos no output de texto do Claude, que qualquer frontend pode parsear.
 
 ```
-Squad Manager (skill)
+Claude Code (Squad Manager skill)
        │
-       ├── Terminal: ASCII art inline no chat
+       ├── Emite: <!-- squad:event {"type":"flow-transition",...} -->
        │
-       └── A2UI Stream: SSE/WebSocket → Browser
-              │
-              ├── createSurface → canvas do flow graph
-              ├── updateComponents → nodes (agents) + edges (delegações)
-              └── updateDataModel → status, métricas, timestamps
+       ├── Frontend que entende: parseia → renderiza UI rica (grafo, timeline)
+       │
+       └── Frontend que não entende: ignora (é um HTML comment)
 ```
 
----
+## Configuração
 
-## Seção 1: Evento de Flow (NDJSON Schema)
+```yaml
+triggers:
+  enabled: true
+  flow:
+    enabled: true        # Habilita flow tracking
+    live: true           # Emite transições em tempo real
+    preview: true        # Gera preview antes de executar
+    summary: true        # Gera summary ao final
+```
 
-### Campos Padrão
+## Eventos de Flow (Stream Markers)
+
+### flow-preview — Mapa planejado
+
+Emitido ANTES da execução. Descreve todos os nodes e edges do workflow:
+
+```
+<!-- squad:event {"type":"flow-preview","squad":"brandcraft","prefix":"bc","workflow":"main-pipeline","nodes":[{"agent":"bc-extractor","icon":"🔍","order":1},{"agent":"bc-inspector","icon":"🔎","order":2},{"agent":"bc-templater","icon":"📐","order":3}],"edges":[{"from":"bc-extractor","to":"bc-inspector"},{"from":"bc-inspector","to":"bc-templater"}],"pattern":"pipeline"} -->
+```
+
+**Campos:**
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| `type` | string | Tipo do evento (ver tabela abaixo) |
-| `squad` | string | Nome do squad |
-| `prefix` | string | slashPrefix do squad |
-| `workflow` | string | Nome do workflow ativo |
-| `from` | object | Agent de origem (`agent`, `icon`, `status`, `duration`) |
-| `to` | object | Agent de destino (`agent`, `icon`, `status`) |
-| `handoff` | object | Artefato transferido (`artifact`, `items`) |
-| `progress` | object | Progresso global (`current`, `total`, `percent`) |
-| `timestamp` | string | ISO 8601 timestamp |
+| `nodes[]` | array | Lista de agents no workflow |
+| `nodes[].agent` | string | ID do agent |
+| `nodes[].icon` | string | Emoji do agent |
+| `nodes[].order` | number | Posição no fluxo |
+| `nodes[].parallel` | boolean | Se é paralelo (opcional) |
+| `nodes[].loop` | boolean | Se participa de review loop (opcional) |
+| `edges[]` | array | Conexões entre agents |
+| `edges[].from` | string | Agent de origem |
+| `edges[].to` | string | Agent de destino |
+| `edges[].type` | string | `sequential` \| `parallel` \| `loop` (opcional) |
+| `pattern` | string | Tipo: `pipeline`, `parallel`, `hub-spoke`, `review` |
 
-### Tipos de Evento
+### flow-transition — Handoff agent→agent
 
-| Tipo | Quando | Campos Extras |
-|------|--------|---------------|
-| `flow-preview` | Antes da execução — mapa planejado | `nodes[]`, `edges[]`, `pattern` |
-| `flow-transition` | Agent→Agent durante execução | `from`, `to`, `handoff`, `progress` |
-| `flow-complete` | Ao final do workflow | `totalDuration`, `agentsExecuted`, `tasksExecuted`, `bottleneck` |
-| `flow-error` | Erro durante execução | `error`, `failedAgent`, `recoverable` |
-| `flow-loop` | Review loop detectado | `iteration`, `maxIterations`, `reviewer`, `decision` |
+Emitido a cada transição durante execução:
 
-### Exemplo: flow-transition
-
-```json
-{
-  "type": "flow-transition",
-  "squad": "brandcraft",
-  "prefix": "bc",
-  "workflow": "main-pipeline",
-  "from": {"agent": "bc-extractor", "icon": "🔍", "status": "completed", "duration": "2m 15s"},
-  "to": {"agent": "bc-inspector", "icon": "🔎", "status": "active"},
-  "handoff": {"artifact": "brand-assets.json", "items": 3},
-  "progress": {"current": 2, "total": 6, "percent": 33},
-  "timestamp": "2026-03-08T10:02:20Z"
-}
+```
+<!-- squad:event {"type":"flow-transition","squad":"brandcraft","prefix":"bc","from":"bc-extractor","to":"bc-inspector","handoff":"brand-assets.json","progress":"2/6"} -->
 ```
 
-### Exemplo: flow-preview
+### flow-complete — Fim do workflow
 
-```json
-{
-  "type": "flow-preview",
-  "squad": "brandcraft",
-  "prefix": "bc",
-  "workflow": "main-pipeline",
-  "nodes": [
-    {"agent": "bc-extractor", "icon": "🔍", "order": 1},
-    {"agent": "bc-inspector", "icon": "🔎", "order": 2},
-    {"agent": "bc-templater", "icon": "📐", "order": 3},
-    {"agent": "bc-renderer", "icon": "🎨", "order": 4},
-    {"agent": "bc-illustrator", "icon": "✏️", "order": 3, "parallel": true},
-    {"agent": "bc-refiner", "icon": "🔧", "order": 5, "loop": true}
-  ],
-  "edges": [
-    {"from": "bc-extractor", "to": "bc-inspector"},
-    {"from": "bc-inspector", "to": "bc-templater"},
-    {"from": "bc-inspector", "to": "bc-illustrator", "type": "parallel"},
-    {"from": "bc-templater", "to": "bc-renderer"},
-    {"from": "bc-illustrator", "to": "bc-renderer"},
-    {"from": "bc-renderer", "to": "bc-refiner"},
-    {"from": "bc-refiner", "to": "bc-presenter", "type": "loop", "maxIterations": 3}
-  ],
-  "pattern": "pipeline + parallel + review",
-  "timestamp": "2026-03-08T10:00:00Z"
-}
+```
+<!-- squad:event {"type":"flow-complete","squad":"brandcraft","prefix":"bc","workflow":"main-pipeline","totalDuration":"13m 45s","agentsExecuted":6,"tasksExecuted":8,"path":["bc-extractor","bc-inspector","bc-templater","bc-renderer","bc-illustrator","bc-refiner"]} -->
 ```
 
-### Exemplo: flow-complete
+### flow-error — Erro durante execução
 
-```json
-{
-  "type": "flow-complete",
-  "squad": "brandcraft",
-  "prefix": "bc",
-  "workflow": "main-pipeline",
-  "totalDuration": "13m 45s",
-  "agentsExecuted": 6,
-  "tasksExecuted": 8,
-  "contextDelta": "+23%",
-  "bottleneck": {"agent": "bc-templater", "duration": "3m 45s", "percent": 27},
-  "timestamp": "2026-03-08T10:13:45Z"
-}
+```
+<!-- squad:event {"type":"flow-error","squad":"brandcraft","prefix":"bc","error":"Review failed after 3 iterations","failedAgent":"bc-reviewer","recoverable":false} -->
 ```
 
----
+### flow-loop — Review loop detectado
 
-## Seção 2: Terminal Renderer (ASCII)
+```
+<!-- squad:event {"type":"flow-loop","squad":"brandcraft","prefix":"bc","iteration":2,"maxIterations":3,"reviewer":"bc-refiner","decision":"needs-revision"} -->
+```
 
-### Preview (ANTES da execução)
+## Terminal Renderer (ASCII)
 
-Quando `triggers.flow.preview: true`, o Squad Manager gera um mapa ASCII do fluxo planejado:
+Para uso no terminal, o Squad Manager TAMBÉM gera representações ASCII legíveis:
+
+### Preview (ANTES)
 
 ```
 📋 Flow Preview: brandcraft / main-pipeline
@@ -135,15 +104,7 @@ Quando `triggers.flow.preview: true`, o Squad Manager gera um mapa ASCII do flux
   Agents: 6 | Steps: 7 | Padrão: pipeline + parallel + review
 ```
 
-**Como construir o preview:**
-1. Ler `workflow.sequence[]` → agents na ordem
-2. Identificar `workflow.parallel_groups[]` → agents paralelos
-3. Identificar `workflow.sequence[].branches[]` → loops condicionais
-4. Renderizar com `──→` para pipeline, `│` para parallel, `←──→` para loops
-
-### Live (DURANTE a execução)
-
-Quando `triggers.flow.live: true`, cada transição emite uma linha inline:
+### Live (DURANTE)
 
 ```
 🔄 [FLOW:bc] bc-extractor ──→ bc-inspector
@@ -151,224 +112,67 @@ Quando `triggers.flow.live: true`, cada transição emite uma linha inline:
    Progresso: ██░░░░ 2/6 agents (33%)
 ```
 
-**Barra de progresso:** `█` para completo, `░` para pendente. Largura fixa de 6 caracteres.
-
-### Summary (DEPOIS da execução)
-
-Quando `triggers.flow.summary: true`, ao final do workflow:
+### Summary (DEPOIS)
 
 ```
 📊 Flow Summary: brandcraft / main-pipeline
 
   bc-extractor (2m 15s) ──→ bc-inspector (1m 30s) ──→ bc-templater (3m 45s)
-       │                                                        │
-       └── bc-illustrator (4m 10s, parallel) ───────────────────┘
-                                    │
-                              bc-refiner (1m 20s) ←→ bc-presenter (0m 45s)
-                              (2 iterações, aprovado na 2ª)
 
-  Total: 13m 45s | Agents: 6/6 | Tasks: 8 | Context: +23%
-  Gargalo: bc-templater (3m 45s, 27% do tempo total)
+  Total: 13m 45s | Agents: 6/6 | Tasks: 8
 ```
 
----
+## Detecção por Frontends (Dual Mode)
 
-## Seção 3: A2UI Renderer (Browser)
+Frontends inteligentes (como squad-chat) podem detectar flows de **duas formas**:
 
-### Protocolo A2UI (v0.9)
+### Modo 1: Stream Markers (explícito)
 
-O [protocolo A2UI do Google](https://a2ui.org/) é um protocolo declarativo onde agents enviam JSON descrevendo UIs — o client renderiza com componentes nativos. Características:
+O Squad Manager emite `<!-- squad:event {...} -->` no texto. O frontend parseia com regex:
 
-- **Seguro**: Não envia código executável, só JSON declarativo
-- **Streaming**: Suporta `updateComponents` incremental — perfeito para live tracking
-- **Custom catalogs**: Catálogos customizados com componentes específicos
-- **Transport**: SSE com JSON RPC — o Squad Manager emite, o browser consome
-
-### Custom Catalog: `squad-flow-catalog.json`
-
-Define componentes customizados para o browser:
-
-| Componente | Descrição | Props Principais |
-|------------|-----------|------------------|
-| `FlowGraph` | Container do grafo (layout: dagre/cose) | `layout`, `direction`, `animated` |
-| `FlowNode` | Agent node | `icon`, `label`, `status`, `duration`, `highlight` |
-| `FlowEdge` | Delegação entre agents | `from`, `to`, `artifact`, `animated`, `type` |
-| `FlowProgress` | Barra de progresso global | `current`, `total`, `percent`, `label` |
-| `FlowMetrics` | Painel de métricas | `duration`, `contextDelta`, `bottleneck` |
-| `FlowTimeline` | Timeline vertical dos eventos | `events[]` |
-
-### Status dos Nodes
-
-| Status | Visual | Descrição |
-|--------|--------|-----------|
-| `pending` | Cinza, outline | Ainda não executou |
-| `active` | Azul, pulsante | Executando agora |
-| `completed` | Verde, sólido | Finalizado com sucesso |
-| `error` | Vermelho, sólido | Falhou |
-| `skipped` | Cinza, dashed | Pulado (condicional não atendida) |
-
-### Mensagens A2UI Emitidas
-
-#### 1. createSurface — Cria o canvas do flow
-
-```json
-{
-  "version": "v0.9",
-  "createSurface": {
-    "surfaceId": "squad-flow-bc",
-    "catalogId": "squad-flow-catalog.json",
-    "metadata": {
-      "squad": "brandcraft",
-      "workflow": "main-pipeline"
-    }
-  }
+```javascript
+const MARKER_RE = /<!-- squad:event (\{.*\}) -->/;
+const match = text.match(MARKER_RE);
+if (match) {
+  const event = JSON.parse(match[1]);
+  // event.type === "flow-transition" etc.
 }
 ```
 
-#### 2. updateComponents — Adiciona nodes e edges
+### Modo 2: Tool Call Pattern Detection (inferência)
 
-```json
-{
-  "version": "v0.9",
-  "updateComponents": {
-    "surfaceId": "squad-flow-bc",
-    "components": [
-      {"id": "node-bc-extractor", "component": "FlowNode", "icon": "🔍", "label": "bc-extractor", "status": "active"},
-      {"id": "node-bc-inspector", "component": "FlowNode", "icon": "🔎", "label": "bc-inspector", "status": "pending"},
-      {"id": "edge-1", "component": "FlowEdge", "from": "node-bc-extractor", "to": "node-bc-inspector", "animated": true}
-    ]
-  }
-}
-```
+Mesmo sem markers, o frontend vê tool calls do Claude no stream-json:
 
-#### 3. updateDataModel — Atualiza status em tempo real
+| Tool Call | Inferência |
+|---|---|
+| `Read squads/X/squad.yaml` | Squad X ativado — extrair nome/versão do resultado |
+| `Read squads/X/agents/A.md` | Agent A iniciado |
+| `Read squads/X/agents/B.md` (após A) | Transição A → B |
+| `Read squads/X/workflows/W.yaml` | Workflow W ativo — extrair nodes/edges |
+| `subagent` com agent=A | Delegação explícita para A |
+| `Bash`/`Write`/`Edit` | Task execution no agente atual |
 
-```json
-{
-  "version": "v0.9",
-  "updateDataModel": {
-    "surfaceId": "squad-flow-bc",
-    "path": "/flow/progress",
-    "value": {"current": 2, "total": 6, "percent": 33}
-  }
-}
-```
+**Recomendação:** Usar Modo 1 quando disponível (dados mais ricos), Modo 2 como fallback/complemento.
 
-#### 4. updateComponents — Transição de status
+## Construção do Grafo a partir do Workflow YAML
 
-Quando um agent completa e o próximo inicia:
+O Squad Manager constrói o grafo lendo:
 
-```json
-{
-  "version": "v0.9",
-  "updateComponents": {
-    "surfaceId": "squad-flow-bc",
-    "components": [
-      {"id": "node-bc-extractor", "component": "FlowNode", "status": "completed", "duration": "2m 15s"},
-      {"id": "node-bc-inspector", "component": "FlowNode", "status": "active"},
-      {"id": "edge-1", "component": "FlowEdge", "animated": false, "style": "solid"}
-    ]
-  }
-}
-```
-
-### Transport: SSE Endpoint
-
-O Squad Manager grava eventos NDJSON no `logPath`. Um script local serve esses eventos via SSE:
-
-```
-GET http://localhost:{port}/flow/{surfaceId}
-Content-Type: text/event-stream
-
-data: {"version":"v0.9","createSurface":{...}}
-
-data: {"version":"v0.9","updateComponents":{...}}
-
-data: {"version":"v0.9","updateDataModel":{...}}
-```
-
-Porta configurável via `triggers.flow.a2ui.port` (default: `3001`).
-
----
-
-## Seção 4: Como o Squad Manager Executa o Flow
-
-### Algoritmo de Construção do Grafo
-
-1. **Ler workflow YAML** → extrair `sequence[]`, `parallel_groups[]`, `branches[]`
-2. **Construir nodes** → cada agent no workflow vira um node com icon e ordem
-3. **Construir edges** → `sequence` gera edges lineares, `parallel_groups` gera edges paralelos, `branches` gera edges condicionais/loop
-4. **Validar direções** → cruzar com `Receives From` / `Hands Off To` nos agent `.md` files
-5. **Detectar padrão** → classificar como pipeline, hub-spoke, parallel, review, ou combinação
-
-### Fluxo de Execução
-
-```
-1. Ler squad.yaml → verificar triggers.flow.enabled === true
-   │
-2. Ler workflow YAML → construir grafo (nodes + edges)
-   │
-3. Cruzar com agents/*.md → validar Receives From / Hands Off To
-   │
-4. Se flow.preview: true
-   │  ├── Terminal: emitir preview ASCII inline
-   │  └── A2UI: createSurface + updateComponents (todos nodes/edges pending)
-   │
-5. Para cada transição agent → agent:
-   │  ├── Terminal: emitir flow-transition ASCII inline
-   │  └── A2UI: updateComponents (status change) + updateDataModel (progress)
-   │
-6. Se loop detectado (branches com next):
-   │  ├── Terminal: emitir flow-loop com iteração
-   │  └── A2UI: updateComponents (edge animated, loop counter)
-   │
-7. Ao final do workflow:
-   │  ├── Terminal: emitir flow-complete summary ASCII
-   │  └── A2UI: updateComponents (all completed) + updateDataModel (final metrics)
-   │
-8. Se display: log | both → gravar NDJSON no logPath
-```
-
-### Regras de Emissão
-
-- Se `triggers.flow` ausente ou `enabled: false` → nenhum evento de flow
-- Se `live: false` → não emitir transições em tempo real (apenas preview e summary)
-- Se `preview: false` → não emitir preview
-- Se `summary: false` → não emitir summary
-- Se `format: ascii` → apenas terminal
-- Se `format: a2ui` → apenas browser
-- Se `format: all` → ambos terminal e browser
-
----
-
-## Seção 5: Dados Disponíveis nos Squads
-
-### Fontes de Dados para Construir o Grafo
-
-| Fonte | Dados | Uso |
-|-------|-------|-----|
-| `workflow.sequence[].agent` | Ordem dos agents | Nodes + edges lineares |
-| `workflow.sequence[].requires` | Dependências | Edges de dependência |
-| `workflow.sequence[].creates` | Artefatos produzidos | Handoff info nos edges |
-| `workflow.parallel_groups[].agents` | Agents paralelos | Edges paralelos |
-| `workflow.sequence[].branches[].next` | Próximo agent condicional | Edges de loop/branch |
-| `workflow.sequence[].branches[].maxIterations` | Limite de loops | Label no edge |
-| `agents/*.md` → `Receives From` | De quem o agent recebe | Validação cruzada |
-| `agents/*.md` → `Hands Off To` | Para quem o agent entrega | Validação cruzada |
+1. `workflow.sequence[]` → agents na ordem → edges lineares
+2. `workflow.parallel_groups[]` → agents paralelos → edges paralelos
+3. `workflow.sequence[].branches[]` → loops condicionais → edges de loop
+4. `agents/*.md` → `Receives From` / `Hands Off To` → validação cruzada
 
 ### Validação Cruzada
 
 O Flow Tracker valida que:
 - Todo edge no workflow tem correspondência em `Receives From` / `Hands Off To`
-- Se um agent declara `Hands Off To: X`, existe um edge para X no workflow
 - Inconsistências geram warnings no preview (não bloqueiam execução)
 
----
-
-## Comandos de Gerenciamento
+## Comandos
 
 | Comando | Ação |
 |---------|------|
-| `*flow-preview {squad} {workflow}` | Mostra mapa do fluxo planejado (terminal + A2UI se configurado) |
+| `*flow-preview {squad} {workflow}` | Mostra mapa planejado (ASCII + markers) |
 | `*flow-summary {squad}` | Mostra diagrama do último fluxo executado |
 | `*flow-live {squad}` | Habilita/desabilita tracking em tempo real |

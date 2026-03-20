@@ -35,8 +35,8 @@ Run these checks against a squad to verify integrity before registration.
 | 22 | Se `triggers.enabled`, `events` tem pelo menos um tipo `true` | Check `events.squad`, `events.agent`, or `events.task` is true | Advisory |
 | 23 | Se `triggers.logPath` definido, path é válido | Verify path string is non-empty and doesn't contain invalid chars | Advisory |
 | 24 | Se `triggers.flow.enabled`, squad tem pelo menos 1 workflow | Check `components.workflows` is non-empty | Advisory |
-| 25 | Se `triggers.flow.format` definido, é válido (`ascii`\|`mermaid`\|`a2ui`\|`all`) | Verify value matches valid options | Advisory |
-| 26 | Se `triggers.flow.a2ui` definido, `transport` é válido (`sse`\|`websocket`) | Verify `a2ui.transport` matches valid options | Advisory |
+| 25 | Se `triggers.flow.enabled`, `live`/`preview`/`summary` são booleans | Verify values are true or false | Advisory |
+| 26 | Se `triggers.display: log\|both`, logPath é definido | Verify logPath string is non-empty | Advisory |
 
 ## Execution Protocol
 

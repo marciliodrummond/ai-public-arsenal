@@ -85,7 +85,13 @@ triggers:
 
 **Se `triggers` ausente ou `triggers.enabled: false` → NENHUM trigger.** Squads existentes continuam inalterados.
 
-See `triggers-protocol.md` for full trigger format, output templates, and execution protocol.
+**Mecanismo de emissão:** Stream markers — HTML comments estruturados no output de texto:
+```
+<!-- squad:event {"type":"squad-start","squad":"my-squad","prefix":"ms","version":"1.0.0"} -->
+```
+Funciona em QUALQUER plataforma. Frontends inteligentes parseiam em UIs ricas. Outros ignoram.
+
+See `triggers-protocol.md` for full trigger format, stream marker spec, and execution protocol.
 
 ### Flow Tracking (Optional)
 
@@ -97,27 +103,18 @@ triggers:
     live: true                       # Emite transições em tempo real
     preview: true                    # Gera preview antes de executar
     summary: true                    # Gera summary ao final
-    format: ascii                    # ascii | mermaid | a2ui | all
-    a2ui:                            # Config A2UI (se format inclui a2ui ou all)
-      transport: sse                 # sse | websocket
-      port: 3001                     # Porta do SSE server
-      catalogId: "squad-flow"        # ID do catálogo customizado
 ```
 
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
 | `flow.enabled` | boolean | `false` | Habilita flow tracking |
 | `flow.live` | boolean | `true` | Emite transições em tempo real |
-| `flow.preview` | boolean | `true` | Gera mapa ASCII/A2UI antes de executar |
+| `flow.preview` | boolean | `true` | Gera mapa planejado antes de executar |
 | `flow.summary` | boolean | `true` | Gera diagrama completo ao final |
-| `flow.format` | string | `ascii` | Formato de output: `ascii`, `mermaid`, `a2ui`, `all` |
-| `flow.a2ui.transport` | string | `sse` | Protocolo: `sse` ou `websocket` |
-| `flow.a2ui.port` | number | `3001` | Porta do SSE/WebSocket server |
-| `flow.a2ui.catalogId` | string | `squad-flow` | ID do catálogo A2UI customizado |
 
 **Se `triggers.flow` ausente ou `flow.enabled: false` → triggers normais sem flow tracking.**
 
-See `flow-tracker-protocol.md` for full NDJSON schema, terminal renderer, A2UI renderer, and catalog spec.
+See `flow-tracker-protocol.md` for full event schema, terminal renderer, and frontend detection guide.
 
 ## Optional Sections
 
