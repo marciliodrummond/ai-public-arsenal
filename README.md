@@ -27,6 +27,37 @@ git clone https://github.com/gutomec/ai-public-arsenal.git
 
 See [INSTALLATION.md](INSTALLATION.md) for detailed instructions and GitHub-first approach.
 
+## What Are Squads?
+
+Imagine you need to review a legal document. You'd want a lawyer to extract key clauses, an analyst to flag risks, a writer to summarize it, and someone to verify everything is correct. That's a squad — a team of AI agents working together, each handling what they do best.
+
+A squad is reusable. You define it once in a configuration file, and then any project can use it. The squad handles coordination automatically: passing work between agents, checking quality, fixing problems when they happen.
+
+### Inside a Squad
+
+- **Agents** — specialized AI workers with different expertise
+- **Tasks** — specific work assignments
+- **Workflows** — how agents hand off work to each other
+- **Configuration** — settings that keep everything running smoothly
+
+### How Squads Stay Reliable
+
+Squad Manager v3 ensures your teams work flawlessly:
+
+- **Stuck detector** — If an agent keeps giving the same wrong answer, the system notices and tries a different approach
+- **Smart retry** — When something fails, agents get a fresh attempt with just what they need
+- **Real validation** — Every output is checked before moving to the next agent
+- **Full visibility** — See exactly what each agent did, how long it took, and where problems occurred
+- **Self-checking** — Agents verify their own work before passing it along
+
+### The Power of Squads
+
+You write the squad once. Then you use it everywhere. Need to review contracts? Create content? Analyze code? Check legal compliance? Build the squad once, run it forever.
+
+The real magic: squads are deterministic and portable. You're not manually juggling AI agents for each project. You describe how your team should work, commit it to your codebase, and every tool that understands squads runs it the same way.
+
+**Define once, run everywhere.**
+
 ## Skills
 
 Skills are AI agent instructions installed via `npx skills add`. They live in `skills/` and follow the [Agent Skills Spec](https://agentskills.io/specification).
