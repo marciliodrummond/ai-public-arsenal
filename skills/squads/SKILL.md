@@ -56,6 +56,8 @@ v2 squads **guarantee output correctness.** v3 squads **guarantee the runtime it
 | v2 | Has `state` or `model_strategy` or `components.schemas` — but NO `harness` |
 | v3 | Has `harness` key in squad.yaml |
 
+**See [version-compatibility-protocol.md](references/version-compatibility-protocol.md) for complete v1/v2/v3 execution rules, upgrade paths, and backward compatibility details.**
+
 ## Intent Classification Engine
 
 Given ANY request, classify into one intent, then **IMMEDIATELY use the Read tool** to load the required reference before responding:
