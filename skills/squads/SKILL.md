@@ -418,9 +418,34 @@ workflow:
 
 All v1/v2 trigger events remain unchanged.
 
-## Compatibility
+## Squad Discovery Engine
 
 **All squads (v1, v2, v3) are discovered from both `./squads/` and `~/squads/` locations.**
+
+**If `*list-squads` returns 0 results but you know squads exist, see [discovery-engine-protocol.md](references/discovery-engine-protocol.md) for debugging steps.**
+
+### Quick Debugging
+
+```bash
+# Verify squads directory exists and has content
+ls -la ~/squads/ | head -20
+
+# Count squad.yaml files
+find ~/squads/ -name "squad.yaml" | wc -l
+
+# Test with verbose mode
+*list-squads --debug
+
+# Manual glob test
+ls ~/squads/*/squad.yaml | head -5
+```
+
+### If Still Not Found
+
+1. **Check permissions**: `chmod 755 ~/squads/`
+2. **Create first squad**: `*create-squad my-first-squad`
+3. **Enable debug mode**: `*list-squads --debug` (shows discovery logs)
+4. **Read full protocol**: See `discovery-engine-protocol.md`
 
 ### v1 Squads
 - All v1 commands work identically
