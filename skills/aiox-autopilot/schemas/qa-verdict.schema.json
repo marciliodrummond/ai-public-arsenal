@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QA Verdict",
+  "type": "object",
+  "required": ["story_id", "verdict", "acceptance_criteria", "issues", "summary"],
+  "properties": {
+    "story_id": { "type": "string" },
+    "verdict": { "type": "string", "enum": ["PASS", "FAIL"] },
+    "acceptance_criteria": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "details"],
+      "properties": {
+        "total": { "type": "integer" },
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ac", "status"],
+            "properties": {
+              "ac": { "type": "string" },
+              "status": { "type": "string", "enum": ["PASS", "FAIL"] },
+              "evidence": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "category", "description"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["CRITICAL", "WARNING", "INFO"] },
+          "category": { "type": "string", "enum": ["code", "test", "security", "performance", "architecture"] },
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "description": { "type": "string" },
+          "suggested_fix": { "type": "string" }
+        }
+      }
+    },
+    "summary": { "type": "string" },
+    "recommendation": { "type": "string" }
+  }
+}

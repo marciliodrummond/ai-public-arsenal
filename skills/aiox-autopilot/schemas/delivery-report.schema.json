@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Delivery Report",
+  "type": "object",
+  "required": ["version", "status", "stories_included", "tests", "build"],
+  "properties": {
+    "version": { "type": "string" },
+    "status": { "type": "string", "enum": ["deployed", "failed", "staging"] },
+    "environment": { "type": "string" },
+    "stories_included": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "tests": {
+      "type": "object",
+      "required": ["all_passed"],
+      "properties": {
+        "unit": { "type": "integer" },
+        "integration": { "type": "integer" },
+        "e2e": { "type": "integer" },
+        "all_passed": { "type": "boolean" }
+      }
+    },
+    "build": { "type": "string", "enum": ["success", "failed"] },
+    "deploy": {
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string" },
+        "url": { "type": "string" },
+        "health_check": { "type": "string" }
+      }
+    },
+    "release_notes": { "type": "string" },
+    "rollback_plan": { "type": "string" },
+    "known_issues": { "type": "array", "items": { "type": "string" } },
+    "next_steps": { "type": "array", "items": { "type": "string" } }
+  }
+}

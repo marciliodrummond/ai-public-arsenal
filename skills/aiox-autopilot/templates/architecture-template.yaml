@@ -1,0 +1,105 @@
+# Architecture Template — AIOX Autopilot Nirvana
+# Baseado no fullstack-architecture-tmpl.yaml v2 do AIOX Core
+
+sections:
+  - id: introduction
+    title: "Introduction"
+    instruction: |
+      Parágrafo introdutório + referência ao PRD.
+      Se brownfield: documentar projeto existente e o que está sendo adicionado.
+
+  - id: system-overview
+    title: "System Overview"
+    instruction: |
+      Diagrama de componentes em Mermaid ou ASCII:
+      - Frontend, Backend, Database, External Services
+      - Fluxo de dados entre componentes
+      - Boundaries de segurança
+
+  - id: tech-stack
+    title: "Technology Stack"
+    instruction: |
+      Tabela Layer | Technology | Version | Justification
+      Cada escolha deve ter justificativa baseada na pesquisa do Analyst.
+      Se brownfield: marcar quais são existentes vs novos.
+
+  - id: data-model
+    title: "Data Model"
+    instruction: |
+      Para cada entidade:
+      - Nome, descrição
+      - Campos com tipos
+      - Relacionamentos (1:N, N:N, etc.)
+      - Indexes planejados
+      Formato: tabela ou Mermaid ER diagram.
+
+  - id: api-design
+    title: "API Design"
+    instruction: |
+      Para cada endpoint:
+      - Method, Path, Description
+      - Request body / Query params
+      - Response shape
+      - Auth required?
+      Agrupar por recurso/entidade.
+
+  - id: authentication
+    title: "Authentication & Authorization"
+    instruction: |
+      - Estratégia de auth (JWT, session, OAuth)
+      - Roles e permissões
+      - Fluxo de login/registro
+      - Protected routes
+
+  - id: frontend-architecture
+    title: "Frontend Architecture"
+    instruction: |
+      - Routing strategy (file-based, manual)
+      - State management (local, server, global)
+      - Component hierarchy (pages → layouts → features → UI)
+      - Data fetching strategy (SSR, SSG, CSR, ISR)
+
+  - id: infrastructure
+    title: "Infrastructure & Deployment"
+    instruction: |
+      - Hosting (Vercel, Railway, Docker, etc.)
+      - CI/CD pipeline
+      - Environment strategy (dev, staging, prod)
+      - Database hosting
+      - CDN / Static assets
+
+  - id: security
+    title: "Security Architecture"
+    instruction: |
+      - OWASP Top 10 mitigations
+      - Input validation strategy
+      - CORS configuration
+      - Rate limiting
+      - Secrets management
+
+  - id: cross-cutting
+    title: "Cross-Cutting Concerns"
+    instruction: |
+      - Error handling (frontend + backend)
+      - Logging strategy
+      - Monitoring / observability
+      - Caching strategy
+
+  - id: source-tree
+    title: "Project Source Tree"
+    instruction: |
+      Estrutura de diretórios COMPLETA do projeto:
+      ```
+      project-root/
+      ├── src/
+      │   ├── app/          # Next.js app router pages
+      │   ├── components/   # React components
+      │   ├── lib/          # Utilities, helpers
+      │   ├── server/       # Server-side logic
+      │   └── ...
+      ├── tests/
+      ├── docs/
+      └── ...
+      ```
+      REGRA: Cada arquivo mencionado nas stories DEVE existir nesta árvore.
+      Se brownfield: mostrar árvore existente + novos arquivos marcados.

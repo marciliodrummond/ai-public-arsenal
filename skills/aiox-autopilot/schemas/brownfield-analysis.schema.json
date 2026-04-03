@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Brownfield Analysis",
+  "description": "Output do Analyst quando projeto é brownfield: análise de codebase existente.",
+  "type": "object",
+  "required": ["project_type", "existing_codebase", "enhancement_scope", "integration_risks"],
+  "properties": {
+    "project_type": { "type": "string", "const": "brownfield" },
+    "existing_codebase": {
+      "type": "object",
+      "required": ["tech_stack", "architecture_pattern", "file_structure", "code_quality"],
+      "properties": {
+        "tech_stack": {
+          "type": "object",
+          "properties": {
+            "frontend": { "type": "string" },
+            "backend": { "type": "string" },
+            "database": { "type": "string" },
+            "other": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "architecture_pattern": { "type": "string" },
+        "file_structure": { "type": "string", "minLength": 20 },
+        "code_quality": {
+          "type": "object",
+          "properties": {
+            "has_tests": { "type": "boolean" },
+            "has_lint": { "type": "boolean" },
+            "has_types": { "type": "boolean" },
+            "tech_debt_level": { "type": "string", "enum": ["low", "medium", "high"] },
+            "patterns_identified": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "dependencies": {
+          "type": "object",
+          "properties": {
+            "total": { "type": "integer" },
+            "outdated": { "type": "integer" },
+            "vulnerable": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "enhancement_scope": {
+      "type": "object",
+      "required": ["classification", "affected_areas"],
+      "properties": {
+        "classification": { "type": "string", "enum": ["single_story", "small_feature", "major_enhancement"] },
+        "affected_areas": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "new_components": { "type": "array", "items": { "type": "string" } },
+        "modified_components": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "integration_risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk", "severity", "mitigation"],
+        "properties": {
+          "risk": { "type": "string" },
+          "severity": { "type": "string", "enum": ["L", "M", "H"] },
+          "mitigation": { "type": "string" },
+          "affected_files": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "minItems": 1
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "must_preserve": { "type": "array", "items": { "type": "string" } },
+        "can_refactor": { "type": "array", "items": { "type": "string" } },
+        "breaking_changes_allowed": { "type": "boolean" }
+      }
+    }
+  }
+}

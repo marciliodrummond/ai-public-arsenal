@@ -1,96 +1,51 @@
 # AI Public Arsenal
 
-Open-source skills for AI coding assistants — Squad Protocol Engine v4 with protocol-driven management, harness engineering, real validation, and dual-path discovery.
+Open-source skills for AI coding assistants. Install individually — each skill is a self-contained capability you add to your agent.
 
 [![npm version](https://img.shields.io/npm/v/@gutomec/ai-public-arsenal)](https://npmjs.com/package/@gutomec/ai-public-arsenal)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > Works with **Claude Code** · **Codex** · **Gemini CLI** · **Cursor** · **Antigravity** · **Windsurf** · **OpenCode**
 
-## Installation
-
-```bash
-# Skills CLI (recommended)
-npx skills add gutomec/ai-public-arsenal@squads
-
-# npm registry
-npm install @gutomec/ai-public-arsenal
-
-# Direct from GitHub
-npm install github:gutomec/ai-public-arsenal
-```
-
-See [INSTALLATION.md](INSTALLATION.md) for all options and the GitHub-first approach.
-
-## Quick Start
-
-After installing the `squads` skill, open your AI coding assistant and run:
-
-```bash
-# List all squads on your machine
-*list-squads
-
-# Create a new squad from scratch
-*create-squad my-awesome-squad
-
-# Validate a squad before running
-*validate-squad my-awesome-squad
-
-# Run a squad workflow
-*run-workflow my-awesome-squad main-pipeline
-```
-
-Squads are discovered from two locations: `./squads/` (project-local) and `~/squads/` (global). Project-local takes precedence on name collisions.
-
-## What Are Squads?
-
-A squad is a team of AI agents that work together. You define the agents, their tasks, and how they pass work between each other — then run the whole thing with one command.
-
-Think of it like a CI pipeline, but for AI work. A legal review squad might have an extractor pulling key clauses, an analyst flagging risks, a writer summarizing findings, and a validator checking everything. You define it once in YAML, and any project can use it.
-
-Each squad is a directory with:
-
-- **Agents** — specialized AI workers (markdown files with persona, tools, instructions)
-- **Tasks** — specific work assignments with pre/post conditions
-- **Workflows** — execution order (pipelines, parallel, DAG)
-- **Schemas** — JSON Schema validation for agent outputs
-- **Config** — coding standards, tech stack, settings
-
 ## Skills
 
-| Skill | Version | Description |
+| Skill | Version | What it does |
 |---|---|---|
-| **[squads](skills/squads/SKILL.md)** | 4.0.0 | Protocol-driven multi-agent squad management with harness engineering |
+| **[squads](#squads)** | 4.0.0 | Manage multi-agent teams — create, validate, execute, and orchestrate squads |
+| **[aiox-autopilot](#aiox-autopilot)** | 2.0.0 | Autonomous agile lifecycle — idea to deployed project, zero human intervention |
 
-### Squad Protocol Engine v4
+### Install a skill
 
-The `squads` skill is built around [SQUAD_PROTOCOL.md](skills/squads/SQUAD_PROTOCOL.md) — a single source of truth that defines how squads are structured, validated, and executed.
+```bash
+# Install one skill at a time
+npx skills add gutomec/ai-public-arsenal@squads
+npx skills add gutomec/ai-public-arsenal@aiox-autopilot
+```
 
-**What it does:**
+---
 
-- **Discovers** squads from `./squads/` and `~/squads/` using filesystem scan
-- **Creates** squads with proper structure (agents, tasks, workflows, schemas)
-- **Validates** squad integrity (structural checks, schema validation, dependency audit)
-- **Activates** squads by registering their agents as available commands
-- **Executes** workflows with state management, checkpoints, and resume
-- **Upgrades** v1/v2 squads to v3/v4 with backward compatibility
+## squads
 
-**Runtime protections:**
+**Protocol-driven multi-agent squad management with harness engineering.**
 
-- **Doom loop detection** — stops agents that keep producing identical output
-- **Ralph loop retry** — when a step fails, retries with a fresh context instead of accumulated noise
-- **Real validation** — checks outputs against JSON Schema (ajv) before passing to the next agent
-- **Context compaction** — trims handoff data to prevent context window overflow
-- **Filesystem collaboration** — large artifacts go to disk instead of through context
-- **Execution traces** — records timing, I/O, retries, and failures per step
-- **Self-verify** — agents check their own work before handing off
-- **DAG workflows** — dependency-based execution, not just sequential pipelines
+A squad is a team of AI agents that work together. You define agents, tasks, and workflows in YAML — then run the whole thing with one command. The `squads` skill handles the full lifecycle: discovery, creation, validation, activation, execution, and upgrade.
 
-**Backward compatible** — v1 and v2 squads run without changes. New features are opt-in via the `harness:` block in `squad.yaml`.
+### Quick start
 
-## Structure
+```bash
+npx skills add gutomec/ai-public-arsenal@squads
+```
 
-Everything lives under `skills/squads/`:
+Then in your AI assistant:
+
+```bash
+*list-squads                              # Find squads in ./squads/ and ~/squads/
+*create-squad my-squad                    # Scaffold a new squad
+*validate-squad my-squad                  # Check integrity before running
+*run-workflow my-squad main-pipeline      # Execute a workflow
+```
+
+### What's inside
 
 | Path | What | Files |
 |---|---|---|
@@ -102,44 +57,123 @@ Everything lives under `skills/squads/`:
 | [`scripts/`](skills/squads/scripts/) | Shell utilities (activate, validate) | 2 |
 | [`lib/`](skills/squads/lib/) | JS helpers (discovery, display) | 2 |
 
-## Squad Lifecycle Triggers
+### Runtime protections
 
-Squads can emit lifecycle events during execution. Triggers are opt-in per squad:
+- **Doom loop detection** — stops agents that keep producing identical output
+- **Ralph loop retry** — retries with fresh context instead of accumulated noise
+- **Real validation** — checks outputs against JSON Schema before passing to the next agent
+- **Context compaction** — trims handoff data to prevent context window overflow
+- **Filesystem collaboration** — large artifacts go to disk instead of through context
+- **Self-verify** — agents check their own work before handing off
+- **DAG workflows** — dependency-based execution, not just sequential pipelines
+- **Execution traces** — records timing, I/O, retries, and failures per step
 
-```yaml
-# In squad.yaml
-triggers:
-  enabled: true
-  display: inline    # inline | log | both
-  events:
-    squad: true      # squad start/end
-    agent: true      # agent start/end
-    task: true       # task start/end
+Backward compatible — v1 and v2 squads run without changes.
+
+---
+
+## aiox-autopilot
+
+**Autonomous agile lifecycle — from idea to deployed project.**
+
+Based on the [AIOX Core](https://github.com/SynkraAI/aiox-core) Agentic Agile methodology. Takes a raw project idea and runs through 5 phases autonomously: researches the market, writes the PRD, designs the architecture, creates stories, implements code, reviews quality, and deploys. Supports both greenfield and brownfield projects.
+
+### Quick start
+
+```bash
+npx skills add gutomec/ai-public-arsenal@aiox-autopilot
 ```
 
-Events are emitted as stream markers (structured HTML comments). Frontends that understand the format can render progress bars, flow graphs, and agent status indicators. Terminals just ignore them.
+Then in your AI assistant:
 
-Set `display: log` to persist events to `.aios/squad-triggers/{squad}.jsonl` for offline analysis.
+```bash
+# Full cycle — idea to deploy
+*autopilot "Marketplace de freelancers para devs"
+
+# Planning only — idea to stories
+*plan "App de finanças pessoais"
+
+# Dev cycle only — stories to deploy
+*build
+
+# Check progress
+*status
+```
+
+### The 5 phases
+
+```
+PHASE 0: DISCOVERY   → Web search for competitors, trending stacks, feasibility
+                       Brownfield: + codebase analysis
+PHASE 1: PLANNING    → PRD + Architecture + Frontend Spec (via AIOX templates)
+         GATE        → PO Master Checklist + cross-reference validation
+PHASE 2: SHARDING    → Stories with Given/When/Then, organized in parallel waves
+                       Each story validated with Story Draft Checklist (score ≥ 8.0)
+PHASE 3: DEV LOOP    → Builder implements → Guardian reviews → fix or next
+                       Course correction on failure patterns
+PHASE 4: DELIVERY    → Integration + tests + deploy + release notes + retrospective
+```
+
+### What's inside
+
+| Path | What | Files |
+|---|---|---|
+| [`SKILL.md`](skills/aiox-autopilot/SKILL.md) | Skill entry point (full pipeline instructions) | 1 |
+| [`templates/`](skills/aiox-autopilot/templates/) | AIOX document templates (PRD, Architecture, Story, Frontend Spec) | 4 |
+| [`checklists/`](skills/aiox-autopilot/checklists/) | Quality gates (PO master, story draft, DoD, security) | 4 |
+| [`schemas/`](skills/aiox-autopilot/schemas/) | JSON Schema for every phase output | 9 |
+| [`config/`](skills/aiox-autopilot/config/) | Coding standards, tech stack defaults | 2 |
+
+### How it decides
+
+The skill acts autonomously at every decision point:
+
+- **Stack selection** — researches current alternatives via web search, picks based on data
+- **Scope** — classifies MVP vs full, applies MoSCoW prioritization
+- **Quality gates** — runs checklists at each phase boundary, fails and retries if score < 8.0
+- **Course correction** — if 2+ stories fail QA in the same wave, stops and reassesses
+- **Brownfield detection** — checks for existing `package.json`/`src/` and adapts the pipeline
+
+### Greenfield vs brownfield
+
+| Aspect | Greenfield | Brownfield |
+|---|---|---|
+| Detection | No existing code | `package.json`, `src/` found |
+| Discovery | Market research + stack selection | + Codebase analysis (stack, patterns, debt) |
+| Planning | Full PRD + Architecture from scratch | Respects existing patterns, maps affected areas |
+| Stories | Files to **create** | Files to **create** + files to **modify** |
+| Builder | Follows Architecture source tree | Follows existing code style + Architecture |
+
+---
+
+## Installation
+
+```bash
+# Individual skills (recommended)
+npx skills add gutomec/ai-public-arsenal@squads
+npx skills add gutomec/ai-public-arsenal@aiox-autopilot
+
+# npm (all skills)
+npm install @gutomec/ai-public-arsenal
+
+# Direct from GitHub
+npm install github:gutomec/ai-public-arsenal
+
+# Git clone
+git clone https://github.com/gutomec/ai-public-arsenal.git
+```
+
+See [INSTALLATION.md](INSTALLATION.md) for details.
 
 ## Distribution
 
-GitHub is the single source of truth. All channels stay in sync automatically.
+GitHub is the single source of truth. All channels sync automatically.
 
-| Channel | Command | Always Latest? |
-|---|---|---|
-| **Skills CLI** | `npx skills add gutomec/ai-public-arsenal@squads` | ✅ |
-| **npm** | `npm install @gutomec/ai-public-arsenal` | ✅ |
-| **Git clone** | `git clone https://github.com/gutomec/ai-public-arsenal.git` | ✅ |
-
-## References
-
-- [SQUAD_PROTOCOL.md](skills/squads/SQUAD_PROTOCOL.md) — protocol specification
-- [01-discovery.md](skills/squads/references/01-discovery.md) — squad discovery engine
-- [02-creation.md](skills/squads/references/02-creation.md) — creating new squads
-- [03-validation.md](skills/squads/references/03-validation.md) — validation checklist
-- [07-execution.md](skills/squads/references/07-execution.md) — workflow execution
-- [08-harness.md](skills/squads/references/08-harness.md) — harness engineering (doom loop, ralph loop, traces)
-- [INSTALLATION.md](INSTALLATION.md) — installation guide
+| Channel | Command |
+|---|---|
+| **Skills CLI** | `npx skills add gutomec/ai-public-arsenal@<skill>` |
+| **npm** | `npm install @gutomec/ai-public-arsenal` |
+| **Git clone** | `git clone https://github.com/gutomec/ai-public-arsenal.git` |
 
 ## License
 

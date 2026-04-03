@@ -1,6 +1,6 @@
 {
   "name": "@gutomec/ai-public-arsenal",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Open-source skills for AI coding assistants — Squad Protocol Engine v4 with protocol-driven management, harness engineering, real validation, and dual-path discovery.",
   "author": "Luiz Gustavo Vieira Rodrigues <gutomec@yahoo.com.br> (https://github.com/gutomec)",
   "license": "MIT",
@@ -28,6 +28,7 @@
   "main": "index.js",
   "exports": {
     "./squads": "./skills/squads/SKILL.md",
+    "./aiox-autopilot": "./skills/aiox-autopilot/SKILL.md",
     "./package.json": "./package.json"
   },
   "files": [

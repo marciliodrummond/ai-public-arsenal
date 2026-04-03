@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Architecture Output",
+  "type": "object",
+  "required": ["system_overview", "tech_stack", "data_model", "source_tree"],
+  "properties": {
+    "system_overview": { "type": "string", "minLength": 50 },
+    "tech_stack": {
+      "type": "object",
+      "required": ["frontend", "backend", "database"],
+      "properties": {
+        "frontend": { "type": "object", "required": ["framework", "justification"] },
+        "backend": { "type": "object", "required": ["framework", "justification"] },
+        "database": { "type": "object", "required": ["engine", "justification"] },
+        "hosting": { "type": "object" },
+        "auth": { "type": "object" }
+      }
+    },
+    "data_model": {
+      "type": "object",
+      "required": ["entities"],
+      "properties": {
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "fields"],
+            "properties": {
+              "name": { "type": "string" },
+              "fields": { "type": "array", "items": { "type": "object" } },
+              "relationships": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "api_design": { "type": "object" },
+    "infrastructure": { "type": "object" },
+    "security": { "type": "object" },
+    "source_tree": { "type": "string", "minLength": 20 }
+  }
+}
