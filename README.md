@@ -1,101 +1,138 @@
 # AI Public Arsenal
 
-Open-source skills, squads, and agents for AI coding assistants — v3 Squad Manager with harness engineering, real validation, doom loop detection, and dual-path discovery.
+Open-source skills for AI coding assistants — Squad Protocol Engine v4 with protocol-driven management, harness engineering, real validation, and dual-path discovery.
 
-**GitHub is the single source of truth.** All installation methods (npm, skills CLI, git) always pull from here.
+[![npm version](https://img.shields.io/npm/v/@gutomec/ai-public-arsenal)](https://npmjs.com/package/@gutomec/ai-public-arsenal)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> Works with **Claude Code** · **Codex** · **Cursor** · **Gemini CLI** · **Antigravity** · **Windsurf** · **OpenCode**
+> Works with **Claude Code** · **Codex** · **Gemini CLI** · **Cursor** · **Antigravity** · **Windsurf** · **OpenCode**
 
 ## Installation
 
-### Recommended: Skills CLI
 ```bash
-npx skills add @gutomec/ai-public-arsenal@squads
-```
+# Skills CLI (recommended)
+npx skills add gutomec/ai-public-arsenal@squads
 
-### Alternative: npm
-```bash
-# From npm registry (mirrors GitHub)
+# npm registry
 npm install @gutomec/ai-public-arsenal
 
 # Direct from GitHub
 npm install github:gutomec/ai-public-arsenal
-
-# Clone repository
-git clone https://github.com/gutomec/ai-public-arsenal.git
 ```
 
-See [INSTALLATION.md](INSTALLATION.md) for detailed instructions and GitHub-first approach.
+See [INSTALLATION.md](INSTALLATION.md) for all options and the GitHub-first approach.
+
+## Quick Start
+
+After installing the `squads` skill, open your AI coding assistant and run:
+
+```bash
+# List all squads on your machine
+*list-squads
+
+# Create a new squad from scratch
+*create-squad my-awesome-squad
+
+# Validate a squad before running
+*validate-squad my-awesome-squad
+
+# Run a squad workflow
+*run-workflow my-awesome-squad main-pipeline
+```
+
+Squads are discovered from two locations: `./squads/` (project-local) and `~/squads/` (global). Project-local takes precedence on name collisions.
 
 ## What Are Squads?
 
-Imagine you need to review a legal document. You'd want a lawyer to extract key clauses, an analyst to flag risks, a writer to summarize it, and someone to verify everything is correct. That's a squad — a team of AI agents working together, each handling what they do best.
+A squad is a team of AI agents that work together. You define the agents, their tasks, and how they pass work between each other — then run the whole thing with one command.
 
-A squad is reusable. You define it once in a configuration file, and then any project can use it. The squad handles coordination automatically: passing work between agents, checking quality, fixing problems when they happen.
+Think of it like a CI pipeline, but for AI work. A legal review squad might have an extractor pulling key clauses, an analyst flagging risks, a writer summarizing findings, and a validator checking everything. You define it once in YAML, and any project can use it.
 
-### Inside a Squad
+Each squad is a directory with:
 
-- **Agents** — specialized AI workers with different expertise
-- **Tasks** — specific work assignments
-- **Workflows** — how agents hand off work to each other
-- **Configuration** — settings that keep everything running smoothly
-
-### How Squads Stay Reliable
-
-Squad Manager v3 ensures your teams work flawlessly:
-
-- **Stuck detector** — If an agent keeps giving the same wrong answer, the system notices and tries a different approach
-- **Smart retry** — When something fails, agents get a fresh attempt with just what they need
-- **Real validation** — Every output is checked before moving to the next agent
-- **Full visibility** — See exactly what each agent did, how long it took, and where problems occurred
-- **Self-checking** — Agents verify their own work before passing it along
-
-### The Power of Squads
-
-You write the squad once. Then you use it everywhere. Need to review contracts? Create content? Analyze code? Check legal compliance? Build the squad once, run it forever.
-
-The real magic: squads are deterministic and portable. You're not manually juggling AI agents for each project. You describe how your team should work, commit it to your codebase, and every tool that understands squads runs it the same way.
-
-**Define once, run everywhere.**
+- **Agents** — specialized AI workers (markdown files with persona, tools, instructions)
+- **Tasks** — specific work assignments with pre/post conditions
+- **Workflows** — execution order (pipelines, parallel, DAG)
+- **Schemas** — JSON Schema validation for agent outputs
+- **Config** — coding standards, tech stack, settings
 
 ## Skills
 
-Skills are AI agent instructions installed via `npx skills add`. They live in `skills/` and follow the [Agent Skills Spec](https://agentskills.io/specification).
-
-### Squad Manager v3
-
-| Skill | Version | Features |
+| Skill | Version | Description |
 |---|---|---|
-| **[squads](skills/squads/SKILL.md)** | 3.0.0 | Harness-engineered multi-agent teams with doom loop detection, Ralph loop retry, real validation (ajv), context compaction, filesystem collaboration, execution traces, reasoning sandwich model routing, DAG workflows, self-verify steps. Discovers squads from both `./squads/` and `~/squads/` |
+| **[squads](skills/squads/SKILL.md)** | 4.0.0 | Protocol-driven multi-agent squad management with harness engineering |
 
-**Key v3 Features:**
-- ✅ **Doom Loop Detection** — Abort when output is identical N times
-- ✅ **Ralph Loop Retry** — Fresh context retry with state persistence
-- ✅ **Real Validation** — In-process ajv (no shell execution)
-- ✅ **Context Compaction** — key-fields, truncate, summarize strategies
-- ✅ **Filesystem Collaboration** — Artifacts in `.squad-state/{run-id}/artifacts/`
-- ✅ **Execution Traces** — Step-level timing, I/O, retry events
-- ✅ **Reasoning Sandwich** — Model routing: planning → implementation → verification
-- ✅ **DAG Workflows** — Dependency-based execution (not just pipelines)
-- ✅ **Self-Verify per Step** — Checklist + test commands
-- ✅ **Dual-Path Discovery** — Squads from `./squads/` AND `~/squads/`
+### Squad Protocol Engine v4
 
-**100% Backwards Compatible** — v1 and v2 squads run without changes.
+The `squads` skill is built around [SQUAD_PROTOCOL.md](skills/squads/SQUAD_PROTOCOL.md) — a single source of truth that defines how squads are structured, validated, and executed.
 
-## Squads
+**What it does:**
 
-Squads are self-contained multi-agent teams managed by the `squads` skill. They are directories with agents, tasks, and workflows.
+- **Discovers** squads from `./squads/` and `~/squads/` using filesystem scan
+- **Creates** squads with proper structure (agents, tasks, workflows, schemas)
+- **Validates** squad integrity (structural checks, schema validation, dependency audit)
+- **Activates** squads by registering their agents as available commands
+- **Executes** workflows with state management, checkpoints, and resume
+- **Upgrades** v1/v2 squads to v3/v4 with backward compatibility
 
-| Squad | Agents | Description |
-|---|---|---|
-| **[nirvana-squad-creator](squads/nirvana-squad-creator/)** | 9 | Meta-squad that generates new squads from requirements |
-| **[ultimate-landingpage](squads/ultimate-landingpage/)** | 9 | Full landing page pipeline — research, copy, design, build, review |
+**Runtime protections:**
+
+- **Doom loop detection** — stops agents that keep producing identical output
+- **Ralph loop retry** — when a step fails, retries with a fresh context instead of accumulated noise
+- **Real validation** — checks outputs against JSON Schema (ajv) before passing to the next agent
+- **Context compaction** — trims handoff data to prevent context window overflow
+- **Filesystem collaboration** — large artifacts go to disk instead of through context
+- **Execution traces** — records timing, I/O, retries, and failures per step
+- **Self-verify** — agents check their own work before handing off
+- **DAG workflows** — dependency-based execution, not just sequential pipelines
+
+**Backward compatible** — v1 and v2 squads run without changes. New features are opt-in via the `harness:` block in `squad.yaml`.
+
+## Structure
+
+```
+ai-public-arsenal/
+├── skills/
+│   └── squads/
+│       ├── SKILL.md                     # Skill definition (entry point)
+│       ├── SQUAD_PROTOCOL.md            # Protocol specification (source of truth)
+│       ├── references/                  # Protocol documentation
+│       │   ├── 01-discovery.md
+│       │   ├── 02-creation.md
+│       │   ├── 03-validation.md
+│       │   ├── 04-activation.md
+│       │   ├── 05-schemas.md
+│       │   ├── 06-workflows.md
+│       │   ├── 07-execution.md
+│       │   ├── 08-harness.md
+│       │   ├── 09-upgrade.md
+│       │   └── 10-context-engineering.md
+│       ├── schemas/                     # JSON Schema definitions
+│       │   ├── agent-schema.json
+│       │   ├── squad-schema.json
+│       │   └── task-schema.json
+│       ├── templates/                   # Scaffolding templates
+│       │   ├── agent.yaml.tmpl
+│       │   ├── squad.yaml.tmpl
+│       │   ├── task.md.tmpl
+│       │   └── workflow.yaml.tmpl
+│       ├── scripts/                     # Utility scripts
+│       │   ├── activate-squad.sh
+│       │   └── validate-squad.sh
+│       └── lib/                         # Helper modules
+│           ├── discovery.js
+│           └── display-formatter.js
+├── package.json
+├── INSTALLATION.md
+└── README.md
+```
 
 ## Squad Lifecycle Triggers
 
-Squads can emit lifecycle events that track execution in real time. Triggers are **opt-in** per squad via `squad.yaml`:
+Squads can emit lifecycle events during execution. Triggers are opt-in per squad:
 
 ```yaml
+# In squad.yaml
 triggers:
   enabled: true
   display: inline    # inline | log | both
@@ -103,120 +140,32 @@ triggers:
     squad: true      # squad start/end
     agent: true      # agent start/end
     task: true       # task start/end
-  flow:
-    enabled: true    # flow tracking between agents
-    live: true       # real-time transitions
-    preview: true    # show planned flow before execution
-    summary: true    # show summary after execution
 ```
 
-### How It Works
+Events are emitted as stream markers (structured HTML comments). Frontends that understand the format can render progress bars, flow graphs, and agent status indicators. Terminals just ignore them.
 
-Triggers are emitted as **stream markers** — structured HTML comments in the Claude output:
-
-```
-<!-- squad:event {"type":"squad-start","squad":"brandcraft","prefix":"bc","version":"1.0.0"} -->
-<!-- squad:event {"type":"agent-start","squad":"brandcraft","agent":"bc-extractor","progress":"1/6"} -->
-<!-- squad:event {"type":"flow-transition","squad":"brandcraft","from":"bc-extractor","to":"bc-inspector","handoff":"brand-assets.json"} -->
-<!-- squad:event {"type":"flow-complete","squad":"brandcraft","totalDuration":"13m 45s","agentsExecuted":6} -->
-```
-
-**Universal compatibility:**
-- Frontends that understand the format (like [squad-chat](https://github.com/gutomec/squad-chat)) parse them into rich visual surfaces — flow graphs, progress bars, agent status indicators
-- Terminals and other frontends simply ignore them (they're HTML comments)
-- No hooks, files on disk, or separate servers required
-
-**Optional JSONL logging** — set `display: log` or `display: both` to also persist events to `.aios/squad-triggers/{squad}.jsonl` for offline analysis.
-
-### Frontend Detection (Dual Mode)
-
-Smart frontends can detect squad activity from two complementary sources:
-
-| Source | How | What you get |
-|---|---|---|
-| **Stream markers** (primary) | Parse `<!-- squad:event {...} -->` from text | Rich data: squad name, version, agent icons, handoff artifacts, progress |
-| **Tool call patterns** (inference) | Detect `Read squads/X/squad.yaml`, `Read agents/*.md` sequences | Coverage even when markers aren't emitted |
-
-See [triggers-protocol.md](skills/squads/references/triggers-protocol.md) and [flow-tracker-protocol.md](skills/squads/references/flow-tracker-protocol.md) for full specs.
-
-## Structure
-
-```
-ai-public-arsenal/
-├── skills/                    # Installable skills
-│   └── squads/
-│       ├── SKILL.md           # Squad Manager v3 skill definition
-│       └── references/        # 15+ protocol documentation files
-│           ├── harness-protocol.md
-│           ├── execution-engine.md
-│           ├── schemas-protocol.md
-│           └── ... (12 more)
-├── squads/                    # Squad definitions (managed by squads skill)
-│   ├── nirvana-squad-creator/  # Meta-squad that generates new squads
-│   └── ultimate-landingpage/   # Full landing page pipeline
-├── package.json               # npm configuration (points to GitHub)
-├── INSTALLATION.md            # GitHub-first installation guide
-├── .npminstallrc              # npm registry instructions
-└── README.md                  # This file
-```
+Set `display: log` to persist events to `.aios/squad-triggers/{squad}.jsonl` for offline analysis.
 
 ## Distribution
 
-**GitHub is the single source of truth** — all files, skills, and squads live here.
+GitHub is the single source of truth. All channels stay in sync automatically.
 
-| Distribution Channel | Always Latest? | Purpose |
+| Channel | Command | Always Latest? |
 |---|---|---|
-| **GitHub** (main branch) | ✅ Yes | Source of truth |
-| **npm** (`@gutomec/ai-public-arsenal`) | ✅ Yes | Registry mirror |
-| **skills.sh** | ✅ Yes | Skill marketplace |
-| **Git clone** | ✅ Yes | Direct repository access |
+| **Skills CLI** | `npx skills add gutomec/ai-public-arsenal@squads` | ✅ |
+| **npm** | `npm install @gutomec/ai-public-arsenal` | ✅ |
+| **Git clone** | `git clone https://github.com/gutomec/ai-public-arsenal.git` | ✅ |
 
-All channels automatically stay in sync. GitHub is the only place changes happen.
+## References
 
-## Commands
-
-```bash
-# List all squads in both ./squads/ and ~/squads/
-*list-squads
-
-# Create a new squad
-*create-squad my-awesome-squad
-
-# Run a squad workflow
-*run-workflow nirvana-squad-creator main-pipeline
-
-# For more commands
-*help
-```
-
-## Version History
-
-- **v3.0.0** (current) — Harness engineering, dual-path discovery, npm package
-- **v2.0.0** — Validation gates, state checkpoints
-- **v1.0.0** — Initial release
-
-See [CHANGELOG.md](https://github.com/gutomec/ai-public-arsenal/releases) for detailed changes.
-
-## Contributing
-
-1. Fork or clone the repository
-2. Make changes on a branch
-3. Test locally
-4. Push to GitHub
-5. Create a pull request
-6. After merge, bump version in `package.json` and push (npm publishes automatically)
-
-All changes must happen on GitHub first — that's the source of truth.
-
-## Resources
-
-- 📖 [Squad Manager v3 Protocol](skills/squads/references/harness-protocol.md)
-- 🔧 [Execution Engine](skills/squads/references/execution-engine.md)
-- 📋 [Squad Creation Protocol](skills/squads/references/squad-creation-protocol.md)
-- ✅ [Validation Checklist](skills/squads/references/validation-checklist.md)
-- 🔀 [Workflow Patterns](skills/squads/references/workflow-patterns.md)
-- 🚀 [Installation Guide](INSTALLATION.md)
+- [SQUAD_PROTOCOL.md](skills/squads/SQUAD_PROTOCOL.md) — protocol specification
+- [01-discovery.md](skills/squads/references/01-discovery.md) — squad discovery engine
+- [02-creation.md](skills/squads/references/02-creation.md) — creating new squads
+- [03-validation.md](skills/squads/references/03-validation.md) — validation checklist
+- [07-execution.md](skills/squads/references/07-execution.md) — workflow execution
+- [08-harness.md](skills/squads/references/08-harness.md) — harness engineering (doom loop, ralph loop, traces)
+- [INSTALLATION.md](INSTALLATION.md) — installation guide
 
 ## License
 
-MIT — See [LICENSE](LICENSE) file for details
+MIT — see [LICENSE](LICENSE) for details.
