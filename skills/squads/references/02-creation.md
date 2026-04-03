@@ -4,69 +4,161 @@
 Intent: CREATE (keywords: create, new, scaffold, generate, build squad)
 
 ## Protocol Reference
-SQUAD_PROTOCOL.md Sections 4.1 (Manifest Schema), 4.2 (Directory Structure), 5.1 (Agent Schema), 6.1 (Task Schema)
+cc-squad-standard.md (primary), SQUAD_PROTOCOL.md Section 4
 
 ## Creation Pipeline
 
 ### Phase 1: Elicitation
-Ask the user these REQUIRED questions:
 
 | Question | Field | Default |
 |----------|-------|---------|
-| What is the squad's purpose? | description | — |
+| Squad purpose? | description | — |
 | Squad name? (kebab-case) | name | derived from purpose |
-| What domain does it serve? | tags | — |
+| Domain/tags? | tags | — |
 | How many agents? | components.agents | 3 |
-| What are their roles? | agent definitions | — |
-| What tasks do they perform? | components.tasks | — |
+| Agent roles? | agent definitions | — |
 | Slash command prefix? | slashPrefix | first 3 chars of name |
 
-### Phase 2: Naming Conventions
-- Squad name: `kebab-case`, 2-50 chars, pattern `^[a-z0-9-]+$`
-- Agent IDs: `kebab-case`, e.g., `backend-dev`, `qa-reviewer`
-- Agent files: `{agent-id}.yaml` in `agents/`
-- Task files: `{task-name}.md` in `tasks/`
-- Workflow files: `{workflow-name}.yaml` in `workflows/`
-- Slash prefix: short, unique, e.g., `myapp` -> `/myapp:agent-id`
+### Phase 2: Scaffold
 
-### Phase 3: Scaffold
-Create directory structure:
 ```bash
-mkdir -p ~/squads/{name}/{agents,tasks,workflows,checklists,templates,tools,scripts,data}
+mkdir -p ~/squads/{name}/{agents,tasks,workflows}
 ```
 
-### Phase 4: Generate squad.yaml
-Use template: `templates/squad.yaml.tmpl`
-Fill in all elicited values. Ensure `components` lists match actual files.
+### Phase 3: Generate squad.yaml
 
-### Phase 5: Generate agents
-For each agent role, use template: `templates/agent.yaml.tmpl`
-Required fields: agent (name, id, title, icon, whenToUse), persona (role, style, identity, focus, core_principles), commands
+```yaml
+name: my-squad
+version: "1.0.0"
+description: "What this squad does"
+author: "author"
+license: MIT
+slashPrefix: msq
+tags: [domain, keywords]
 
-### Phase 6: Generate tasks
-For each task, use template: `templates/task.md.tmpl`
-Required fields: task (name, responsavel), steps
+components:
+  agents:
+    - agent-one.md
+    - agent-two.md
+  tasks:
+    - task-one.md
+    - task-two.md
+  workflows:
+    - main-pipeline.yaml
 
-### Phase 7: Generate workflows (if applicable)
-Use template: `templates/workflow.yaml.tmpl`
-At minimum, create one workflow connecting the agents.
+agents_metadata:
+  agent-one:
+    icon: "🔍"
+    archetype: Builder
+  agent-two:
+    icon: "📊"
+    archetype: Guardian
 
-### Phase 8: Post-creation validation
-Run `*squad validate {name}` to verify:
-- squad.yaml is valid against schema
-- All referenced files exist
-- Agent IDs match file names
-- Task responsavel matches an agent
-- No orphaned files
+state:
+  enabled: true
+  storage: file
+  checkpoint_dir: ".squad-state"
+  resume: true
 
-### Phase 9: Sync check
-Count files on disk in each directory. Compare with `components` arrays in squad.yaml. They MUST match.
+model_strategy:
+  orchestrator: "claude-sonnet-4"
+  workers: "claude-sonnet-4"
 
-## Task-First Principle
-When creating squads, define TASKS first, then create agents to execute them. The squad.yaml `components` section lists tasks before agents to emphasize this.
+harness:
+  doom_loop:
+    enabled: true
+    max_identical_outputs: 3
+    on_detect: abort
+  context_compaction:
+    enabled: true
+    strategy: key-fields
+    max_handoff_tokens: 4000
+  self_verify:
+    default_enabled: true
+```
 
-## Common Errors
-- Mismatched agent ID in squad.yaml vs filename
-- Task `responsavel` referencing non-existent agent
-- Missing required fields in agent/task definitions
-- Workflow referencing agents not in the squad
+### Phase 4: Generate agents (CC format)
+
+Use template: `templates/agent-cc.md.tmpl`
+
+```yaml
+---
+name: agent-name
+description: "When to use — one paragraph"
+tools: [Read, Write, Bash]
+---
+
+You are [role]. You [approach].
+
+## Guidelines
+- [principle 1]
+- [principle 2]
+- [principle 3]
+
+## Process
+1. [step 1]
+2. [step 2]
+3. [step 3]
+
+## Output
+[format and location]
+```
+
+**Rules:**
+- Body target: 1000–2000 tokens
+- Max body: 2500 tokens (split agent if larger)
+- Prose only — no YAML in body
+- 4 sections: opening paragraph + Guidelines + Process + Output
+
+### Phase 5: Generate tasks (CC format)
+
+Use template: `templates/task-cc.md.tmpl`
+
+```yaml
+---
+name: task-name
+description: "What this accomplishes"
+---
+
+# Task Name
+
+## Input
+[what this receives]
+
+## Steps
+1. [step]
+2. [step]
+
+## Output
+[what to produce]
+
+## Acceptance Criteria
+- [criterion]
+```
+
+**Note:** Tasks do NOT have `owner`. The workflow decides who executes.
+
+### Phase 6: Generate workflow
+
+```yaml
+name: main_pipeline
+description: "What this workflow does"
+
+steps:
+  - id: step-1
+    agent: agent-one
+    task: task-one
+    depends_on: []
+  - id: step-2
+    agent: agent-two
+    task: task-two
+    depends_on: [step-1]
+
+success_indicators:
+  - "criterion 1"
+  - "criterion 2"
+```
+
+### Phase 7: Validate
+
+Run `*squad validate {name}` → must be SAFE (100/100).

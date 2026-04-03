@@ -239,7 +239,7 @@ All artifacts are saved to `.artifacts/aiox-autopilot/`:
 
 ## Squad Integration
 
-This skill is self-contained — all templates, checklists, and schemas are bundled. It can also delegate to the `aiox-autopilot` squad at `~/squads/aiox-autopilot/` if installed:
+This skill can delegate to the `aiox-autopilot` squad at `~/squads/aiox-autopilot/` for structured execution:
 
 ```bash
 # Activate and run the squad workflow
@@ -251,17 +251,17 @@ Or run phases independently using subagents for parallel execution when possible
 
 ## Templates & Checklists (embedded references)
 
-Templates and checklists are bundled with this skill. Read them before generating documents:
+Templates and checklists are in the squad directory. Read them before generating documents:
 
 ```
-templates/prd-template.yaml
-templates/architecture-template.yaml
-templates/story-template.yaml
-templates/frontend-spec-template.yaml
-checklists/po-master-checklist.md
-checklists/story-draft-checklist.md
-checklists/story-dod-checklist.md
-checklists/security-checklist.md
+~/squads/aiox-autopilot/templates/prd-template.yaml
+~/squads/aiox-autopilot/templates/architecture-template.yaml
+~/squads/aiox-autopilot/templates/story-template.yaml
+~/squads/aiox-autopilot/templates/frontend-spec-template.yaml
+~/squads/aiox-autopilot/checklists/po-master-checklist.md
+~/squads/aiox-autopilot/checklists/story-draft-checklist.md
+~/squads/aiox-autopilot/checklists/story-dod-checklist.md
+~/squads/aiox-autopilot/checklists/security-checklist.md
 ```
 
 **ALWAYS read the relevant template/checklist before generating or validating a document.**
