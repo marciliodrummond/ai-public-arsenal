@@ -1,6 +1,6 @@
 ---
 name: squads
-description: "Squad Protocol Engine — protocol-driven multi-agent squad management with harness engineering. Discovers, creates, validates, activates, executes, and manages squads. Source of truth: SQUAD_PROTOCOL.md."
+description: "Use when the user mentions squads, multi-agent teams, or wants to discover, create, validate, activate, run, or manage squads. Triggers on: 'squad', 'squads', 'multi-agent', 'workflow squad', 'run squad', 'list squads', 'activate squad', 'create squad'. Discovers squads in ~/squads/ and ./squads/, manages their lifecycle, and executes workflows. Source of truth: SQUAD_PROTOCOL.md."
 license: MIT
 compatibility: "Claude Code, Codex, Gemini CLI, Cursor, Antigravity, Windsurf, OpenCode"
 allowed-tools: Read Write Edit Glob Grep Bash(mkdir:*) Bash(ls:*) Bash(cp:*) Bash(ln:*) Bash(rm:*) Bash(cat:*) Bash(wc:*) Bash(node:*) Bash(python3:*) Bash(find:*) Bash(sh:*) Bash(chmod:*)
